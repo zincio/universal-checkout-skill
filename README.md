@@ -35,10 +35,10 @@ Compatible agents automatically discover skills in the workspace `skills/` folde
 2. **User** — `~/.openclaw/skills/`
 3. **Bundled** — shipped with the installation
 
-Install via [ClawHub](https://clawhub.com):
+Install via [ClawHub](https://clawhub.ai/a5huynh/universal-checkout):
 
 ```bash
-clawhub install universal-checkout-skill
+clawhub install a5huynh/universal-checkout
 ```
 
 Or clone manually into either the workspace or user skill directory:
