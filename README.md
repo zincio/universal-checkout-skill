@@ -38,7 +38,7 @@ Compatible agents automatically discover skills in the workspace `skills/` folde
 Install via [ClawHub](https://clawhub.ai/a5huynh/universal-checkout):
 
 ```bash
-clawhub install a5huynh/universal-checkout
+clawhub install universal-checkout
 ```
 
 Or clone manually into either the workspace or user skill directory:
