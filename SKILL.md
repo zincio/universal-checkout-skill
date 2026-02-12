@@ -14,6 +14,7 @@ Place and manage orders on online retailers through the Zinc API (`https://api.z
 ## Authentication
 
 All requests use Bearer token auth:
+
 ```
 Authorization: Bearer $ZINC_API_KEY
 ```
@@ -25,6 +26,7 @@ Authorization: Bearer $ZINC_API_KEY
 Place a new order. Orders process asynchronously.
 
 **Required fields:**
+
 - `products` — array of `{ url, quantity?, variant? }` objects
   - `url`: direct product page URL on a supported retailer
   - `quantity`: integer (default 1)
@@ -33,6 +35,7 @@ Place a new order. Orders process asynchronously.
 - `max_price` — integer, maximum price **in cents**
 
 **Optional fields:**
+
 - `idempotency_key` — string (max 36 chars) to prevent duplicates
 - `retailer_credentials_id` — short ID like `zn_acct_XXXXXXXX`
 - `metadata` — arbitrary key-value object
@@ -77,7 +80,8 @@ curl -X POST https://api.zinc.com/orders \
 See [references/errors.md](references/errors.md) for the full error code reference.
 
 Key points:
-- HTTP errors return `{ code, message, details }` 
+
+- HTTP errors return `{ code, message, details }`
 - Order processing failures appear in webhook/order response as `error_type`
 - Common issues: `max_price_exceeded`, `product_out_of_stock`, `invalid_shipping_address`
 
@@ -88,21 +92,27 @@ Orders process asynchronously and typically take **5–10 minutes**. After placi
 1. Schedule a cron job to check the order status ~7 minutes after creation.
 2. Use `GET /orders/{id}` to poll.
 3. Report the result back to the user in the same channel.
+4. If still pending/in_progress, schedule another check in 5 minutes.
 
 **Terminal statuses:** `order_placed`, `order_failed`, `cancelled` — stop polling.
 **Non-terminal:** `pending`, `in_progress` — schedule another check in 3–5 minutes.
 
 Example cron job (isolated, announce back to the channel):
+
 ```json
 {
   "name": "zinc-order-check-<short_id>",
   "schedule": { "kind": "at", "at": "<ISO-8601 ~7min from now>" },
   "payload": {
     "kind": "agentTurn",
-    "message": "Check Zinc order <order_id> via GET https://api.zinc.com/orders/<order_id> with Bearer $ZINC_API_KEY. Report the status. If still pending/in_progress, schedule another check in 5 minutes."
+    "message": "Check Zinc order <order_id> via GET https://api.zinc.com/orders/<order_id>"
   },
   "sessionTarget": "isolated",
-  "delivery": { "mode": "announce", "channel": "<channel>", "to": "<channel_id>" }
+  "delivery": {
+    "mode": "announce",
+    "channel": "<channel>",
+    "to": "<channel_id>"
+  }
 }
 ```
 
