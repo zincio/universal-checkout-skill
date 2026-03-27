@@ -194,3 +194,9 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Reading orders (GET) is always safe.
 - Validate that `max_price` is reasonable before submitting.
 - MPP orders charge the agent's crypto wallet — ensure sufficient balance before placing.
+
+## Support
+
+- Email: support@zinc.com
+- Book a call with our CEO: https://cal.com/zinc-ian/15min
+- Discord: https://discord.gg/cuXgfczYfj

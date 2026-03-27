@@ -12,8 +12,8 @@ An [Agent Skill](https://agentskills.io) for placing and managing e-commerce ord
 
 ## Prerequisites
 
-- A Zinc API key. Sign up at [app.zinc.com](https://app.zinc.com).
-- `ZINC_API_KEY` environment variable must be set.
+- **API Key auth:** A Zinc API key (sign up at [app.zinc.com](https://app.zinc.com)). Set the `ZINC_API_KEY` environment variable.
+- **MPP auth (Machine Payments Protocol):** A funded Tempo wallet key. Set the `TEMPO_PRIVATE_KEY` environment variable. No Zinc account needed — pay per-order with on-chain crypto.
 
 ## Installation
 
@@ -70,3 +70,9 @@ OpenClaw hot-reloads skills when `SKILL.md` changes, so no restart is needed aft
 
 - [SKILL.md](SKILL.md) — Full endpoint details, field descriptions, examples, and safety guidelines
 - [references/errors.md](references/errors.md) — HTTP status codes, API error codes, and order processing error types
+
+## Support
+
+- Email: [support@zinc.com](mailto:support@zinc.com)
+- Book a call with our CEO: [cal.com/zinc-ian/15min](https://cal.com/zinc-ian/15min)
+- Discord: [discord.gg/cuXgfczYfj](https://discord.gg/cuXgfczYfj)
