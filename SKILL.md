@@ -195,6 +195,109 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Validate that `max_price` is reasonable before submitting.
 - MPP orders charge the agent's crypto wallet — ensure sufficient balance before placing.
 
+## Managed Accounts (Retailer Credentials)
+
+Managed accounts let users supply their own retailer login credentials (e.g., Amazon) instead of relying on Zinc's default accounts. This is useful for users who want more control over order processing or need to use accounts with specific settings (Prime, business pricing, etc.).
+
+Docs: https://www.zinc.com/docs/v2/api-reference/managed-accounts
+
+All endpoints require `Authorization: Bearer $ZINC_API_KEY`.
+
+### Key Concepts
+
+- **Order locking:** Only one order processes at a time per managed account — prevents cart conflicts.
+- **Security:** Passwords and TOTP secrets are encrypted at rest and never returned in API responses.
+- **Email forwarding:** Each managed account gets a dedicated Zinc email address for receiving retailer verification/2FA codes. Configure your email provider to forward retailer emails to this address.
+
+### Create Managed Account — `POST /managed-accounts`
+
+Register retailer credentials with Zinc.
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Retailer account email |
+| `password` | string | No | Retailer account password (encrypted at rest) |
+| `retailer` | string | No | Retailer identifier (e.g., `"amazon"`); null for default |
+| `totp_secret` | string | No | TOTP 2FA secret key — the 64-character secret, NOT the 6-digit code |
+| `retailer_config` | object | No | Retailer-specific configuration |
+
+**Response (201):** Returns a credential object with `id`, `short_id` (e.g., `zn_acct_a1b2c3d4`), `email`, `retailer`, `has_totp`, `has_forwarding`, `forwarding_email`, `retailer_config`, `created_at`, `updated_at`.
+
+```bash
+curl -X POST https://api.zinc.com/managed-accounts \
+  -H "Authorization: Bearer $ZINC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "myaccount@example.com",
+    "password": "retailer-password",
+    "retailer": "amazon"
+  }'
+```
+
+### List Managed Accounts — `GET /managed-accounts`
+
+Returns `{ credentials: [...], total: <int> }` with all retailer credentials for your account.
+
+```bash
+curl https://api.zinc.com/managed-accounts \
+  -H "Authorization: Bearer $ZINC_API_KEY"
+```
+
+### Update Managed Account — `PUT /managed-accounts/{short_id}`
+
+Update credentials by `short_id`. All body fields are optional — only provided values are updated.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `email` | string | New email |
+| `password` | string | New password |
+| `retailer` | string | New retailer |
+| `totp_secret` | string | New TOTP secret |
+| `retailer_config` | object | New retailer config |
+
+```bash
+curl -X PUT https://api.zinc.com/managed-accounts/zn_acct_a1b2c3d4 \
+  -H "Authorization: Bearer $ZINC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "password": "new-password" }'
+```
+
+### Delete Managed Account — `DELETE /managed-accounts/{short_id}`
+
+Permanently deletes credentials. Returns `204 No Content` on success.
+
+**Warning:** Deleting credentials that are actively in use by a processing order may cause the order to fail.
+
+```bash
+curl -X DELETE https://api.zinc.com/managed-accounts/zn_acct_a1b2c3d4 \
+  -H "Authorization: Bearer $ZINC_API_KEY"
+```
+
+### Using Managed Accounts with Orders
+
+Pass the `short_id` as `retailer_credentials_id` when creating an order:
+
+```bash
+curl -X POST https://api.zinc.com/orders \
+  -H "Authorization: Bearer $ZINC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "retailer_credentials_id": "zn_acct_a1b2c3d4",
+    "products": [{ "url": "https://www.amazon.com/dp/B09V3KXJPB", "quantity": 1 }],
+    "max_price": 5000,
+    "shipping_address": { ... }
+  }'
+```
+
+### Setup Tips
+
+- **TOTP 2FA:** If the retailer account has 2FA enabled, provide the TOTP secret key (the 64-character base32 string, not the rotating 6-digit code). On Amazon: Login & Security → Enable 2FA → "Can't scan the barcode?" → copy the secret.
+- **Email forwarding:** Set up email filters to forward only retailer domain emails (e.g., from `amazon.com`) to the Zinc forwarding address — avoid forwarding all mail.
+- **Disable passkeys:** Passkeys interfere with automated login. On Amazon: Login & Security → Passkey → delete any passkeys. Use password + TOTP only.
+- **Best practice:** Create a dedicated retailer account for Zinc to avoid conflicts with personal orders.
+
 ## Support
 
 - Email: support@zinc.com
