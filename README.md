@@ -27,9 +27,12 @@ This repo ships the **`universal-checkout`** skill (every retailer, full order l
 
 ## What these skills do
 
-- **Place orders** — `POST /orders` (API key) or `POST /agent/orders` (Machine Payments Protocol — pay per-order with on-chain crypto, no account needed)
-- **Track & list orders** — `GET /orders`, `GET /orders/{id}`
-- **Managed accounts** — order with a user's own retailer credentials (membership/business pricing)
+Full US shopping lifecycle — discover → buy → track → return:
+
+- **Discover** — `GET /search` (cross-retailer, returns orderable URLs); `GET /products/search` + `GET /products/{id}/offers` for best-price comparison (Amazon & Walmart)
+- **Place orders** — `POST /orders` (API key) or `POST /agent/orders` (Machine Payments Protocol — pay per-order with on-chain crypto, no account needed), with condition filters, `handling_days_max`, variants, and `is_gift`
+- **Track & manage** — `GET /orders`, `GET /orders/{id}` (tracking + price breakdown), `POST /orders/{id}/cancel`
+- **Returns** — `POST /returns`, `GET /returns`
 - **Error handling** — full code reference in each skill's `references/errors.md`
 
 ## Prerequisites

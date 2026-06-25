@@ -1,13 +1,13 @@
 ---
 name: universal-checkout
-description: Place, list, and retrieve orders across Amazon, Walmart, Target, Best Buy, eBay, and 50+ online retailers via the Zinc API (zinc.com). Use when the user wants to buy a product from an online retailer, check out, check order status, list recent orders, or anything involving programmatic e-commerce ordering. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for paying with crypto on-chain.
+description: Discover, buy, track, and return products across Amazon, Walmart, Target, Best Buy, and 50+ US online retailers via the Zinc API (zinc.com). Use when the user wants to search for or buy a product, check out, check order status or tracking, cancel an order, or return an item programmatically. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for paying with crypto on-chain.
 ---
 
 # Universal Checkout
 
-Place and manage orders on online retailers through the Zinc API (`https://api.zinc.com`).
+Discover, buy, track, and return products across US online retailers through the Zinc API (`https://api.zinc.com`). One API covers Amazon, Walmart, Target, Best Buy, eBay, Home Depot, Lowe's, Wayfair, and 50+ more.
 
-> One API buys from Amazon, Walmart, Target, Best Buy, eBay, and 50+ other retailers. Live retailer list: `GET https://api.zinc.com/retailers`. If an agent only ever buys from one store, there are also retailer-specific skills (`amazon-checkout`, `walmart-checkout`, …) — see the repo README.
+> Live supported-retailer list: `GET https://api.zinc.com/retailers`. If an agent only ever buys from one store, there are also retailer-specific skills (`amazon-checkout`, `walmart-checkout`, …) — see the repo README.
 
 ## Quick Start
 
@@ -16,6 +16,8 @@ Place and manage orders on online retailers through the Zinc API (`https://api.z
 - **`ZINC_API_KEY` env var is set** → Use `POST /orders` with Bearer token auth. This is the standard flow for pre-registered users.
 - **`TEMPO_PRIVATE_KEY` env var is set** (or user wants to pay with crypto) → Use `POST /agent/orders` with MPP. No account needed — pay per-order with on-chain crypto.
 - **Neither is set** → Ask the user to either sign up at <https://app.zinc.com> for an API key, or provide a funded Tempo wallet key.
+
+All amounts are in **US cents** (e.g. `5000` = $50.00). Orders ship to US addresses.
 
 ## Authentication
 
@@ -36,122 +38,78 @@ MPP uses a challenge-response flow — no API key needed upfront:
 
 The `pympp` `Client` handles steps 1-3 automatically. You just make one `client.post()` call.
 
-## Endpoints
+## 1. Discover products (optional)
 
-### Create Order (API Key) — `POST /orders`
+If the user gives you a product URL, skip to **Place an order**. Otherwise, find an orderable product first.
 
-Place a new order using your API key. Requires `Authorization: Bearer $ZINC_API_KEY`.
+### Cross-retailer search — `GET /search`
+
+Search across retailers (Amazon, Walmart, Target, Best Buy, Home Depot, Lowe's, Costco, eBay, Wayfair, Macy's, and more). Results are ranked by a quality signal (rating + review volume, price as tiebreaker) and woven across retailers so one doesn't dominate.
+
+```bash
+curl "https://api.zinc.com/search?q=cast+iron+skillet" \
+  -H "Authorization: Bearer $ZINC_API_KEY"
+```
+
+Returns `{ status, query, results: [...] }`. Each result has a directly **orderable `url`** plus `retailer`, `title`, `image`, `brand`, `price` (cents), `stars`, `num_reviews`, `available`. Pass a result's `url` straight into an order. *(Beta: no sort/filter params yet; coverage varies by query.)*
+
+### Product search & best-price offers (Amazon & Walmart)
+
+- **`GET /products/search?query=<term>&retailer=amazon|walmart&page=<n>`** — richer per-retailer results: `product_id`, `price`, `ship_price`, `prime`, `stars`, `num_reviews`, `available`, etc.
+- **`GET /products/{product_id}/offers?retailer=amazon|walmart`** — the available offers for a product, so you can compare **price and condition** and pick the cheapest acceptable one before ordering. Optional: `max_age` / `newer_than` (seconds, mutually exclusive), `async=true` to return immediately with `status=processing`.
+
+## 2. Place an order — `POST /orders` (or `POST /agent/orders` for MPP)
 
 **Required fields:**
 
-- `products` — array of `{ url, quantity?, variant? }` objects
-  - `url`: direct product page URL on a supported retailer
-  - `quantity`: integer (default 1)
-  - `variant`: array of `{ label, value }` for size/color/etc.
-- `shipping_address` — object with `first_name`, `last_name`, `address_line1`, `address_line2`, `city`, `state` (2-letter), `postal_code`, `phone_number`, `country` (ISO alpha-2, e.g. "US")
-- `max_price` — integer, maximum price **in cents** (e.g. 5000 = $50.00)
+- `products` — array of product objects (see below)
+- `shipping_address` — US delivery address (see below)
+- `max_price` — integer, the **maximum total in cents** Zinc may spend before finalizing (your price ceiling)
 
-**Optional fields:**
+**Product object:**
 
-- `idempotency_key` — string (max 36 chars) to prevent duplicates
-- `retailer_credentials_id` — short ID like `zn_acct_XXXXXXXX`
-- `metadata` — arbitrary key-value object
-- `po_number` — purchase order number string
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | ✓ | Direct product page URL on a supported retailer |
+| `quantity` | integer 1–100 | — | Units to buy (default 1) |
+| `variant` | array of `{ label, value }` | — | Options, e.g. `[{ "label": "Size", "value": "Large" }]` |
+| `condition_in` | array | — | Allowlist of acceptable conditions |
+| `condition_not_in` | array | — | Denylist of excluded conditions |
 
-**Response:** order object with `id` (UUID), `status`, `items`, `shipping_address`, `created_at`, `tracking_numbers`, etc.
+**Condition enum:** `New`, `Refurbished`, `UsedLikeNew`, `UsedVeryGood`, `UsedGood`, `UsedAcceptable`.
 
-**Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled`
+**Shipping address:** `first_name`, `last_name`, `address_line1`, `address_line2` (optional), `city`, `state` (2-letter), `postal_code`, `phone_number`, `country` (defaults to `US`).
 
-### Create Order (MPP) — `POST /agent/orders`
+**Optional order fields:**
 
-Place an order using the Machine Payments Protocol. No API key required — payment is made inline via on-chain crypto.
+| Field | Type | Description |
+|-------|------|-------------|
+| `handling_days_max` | integer ≥1 | Cap on seller handling time — the lever for bounding how fast it ships. Omit for no limit. |
+| `is_gift` | boolean | Suppress prices on the packing slip (default `false`). |
+| `idempotency_key` | string ≤36 chars | Prevents duplicate orders; auto-generated if omitted. |
+| `metadata` | object | Arbitrary key-value pairs for your own reference. |
+| `po_number` | string | Purchase order reference. |
 
-**Same request body as `POST /orders`** (products, shipping_address, max_price).
+### Controlling price & shipping
 
-**Billing:**
-- Agent pays `max_price` upfront via crypto deposit
-- A `$1.00` API fee is reserved — the retailer bot spends at most `max_price - $1`
-- On success: charged `actual_price + $1`, remainder refunded via Stripe
-- On failure: full `max_price` refunded via Stripe
+There is no shipping-*method* picker; control cost and speed with these:
 
-**Response headers on success (HTTP 201):**
-- `X-Api-Key` — Bearer token (e.g. `zn_live_...`) for checking order status
-- `Payment-Receipt` — base64-encoded payment receipt
+- **Price ceiling:** `max_price` — Zinc won't finalize above it (`max_price_exceeded` otherwise).
+- **Best/cheapest price:** allow used or refurbished via `condition_in` (e.g. `["New", "UsedLikeNew"]`) so the bot can take a cheaper qualifying offer; use the **offers** endpoint above to compare first.
+- **Shipping speed:** `handling_days_max` caps seller handling time.
 
-**Python example (full working code):**
+**Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
-```python
-# pip install pympp
-from mpp.client import Client
-from mpp.methods.tempo import tempo, TempoAccount, ChargeIntent, CHAIN_ID
-
-account = TempoAccount.from_key("0x<your-private-key>")
-method = tempo(
-    chain_id=CHAIN_ID,
-    account=account,
-    intents={"charge": ChargeIntent()},
-)
-
-async with Client(methods=[method]) as client:
-    response = await client.post(
-        "https://api.zinc.com/agent/orders",
-        json={
-            "products": [{"url": "https://www.amazon.com/dp/B09V3KXJPB", "quantity": 1}],
-            "max_price": 5000,
-            "shipping_address": {
-                "first_name": "Jane",
-                "last_name": "Doe",
-                "address_line1": "123 Main St",
-                "city": "San Francisco",
-                "state": "CA",
-                "postal_code": "94105",
-                "phone_number": "5551234567",
-                "country": "US",
-            },
-        },
-    )
-
-    # The Client handles the 402 → pay on-chain → retry flow automatically
-    order = response.json()
-    order_id = order["id"]
-    api_key = response.headers["X-Api-Key"]
-
-    # Use the API key to check status later
-    status_response = await client.get(
-        f"https://api.zinc.com/orders/{order_id}",
-        headers={"Authorization": f"Bearer {api_key}"},
-    )
-```
-
-For testnet, use `TESTNET_CHAIN_ID` instead of `CHAIN_ID`:
-
-```python
-from mpp.methods.tempo import TESTNET_CHAIN_ID
-method = tempo(chain_id=TESTNET_CHAIN_ID, account=account, intents={"charge": ChargeIntent()})
-```
-
-### List Orders — `GET /orders`
-
-Returns `{ orders: [...] }` array of order objects. Requires Bearer token auth.
-
-### Get Order — `GET /orders/{id}`
-
-Retrieve a single order by UUID. Requires Bearer token auth (`ZINC_API_KEY` or the `X-Api-Key` from MPP).
-
-```bash
-curl https://api.zinc.com/orders/<order_id> \
-  -H "Authorization: Bearer <api_key>"
-```
-
-## Example: Place an Order (API Key)
+**Example (API key):**
 
 ```bash
 curl -X POST https://api.zinc.com/orders \
   -H "Authorization: Bearer $ZINC_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "products": [{ "url": "https://www.amazon.com/dp/B09V3KXJPB", "quantity": 1 }],
+    "products": [{ "url": "https://www.amazon.com/dp/B09V3KXJPB", "quantity": 1, "condition_in": ["New"] }],
     "max_price": 5000,
+    "handling_days_max": 5,
     "shipping_address": {
       "first_name": "Jane",
       "last_name": "Doe",
@@ -164,6 +122,100 @@ curl -X POST https://api.zinc.com/orders \
     }
   }'
 ```
+
+### Paying with crypto (MPP) — `POST /agent/orders`
+
+Same request body. No API key required — payment is made inline via on-chain crypto.
+
+**Billing:** agent pays `max_price` upfront via crypto deposit; a `$1.00` API fee is reserved (bot spends at most `max_price - $1`). On success: charged `actual_price + $1`, remainder refunded via Stripe. On failure: full `max_price` refunded.
+
+On success (HTTP 201) the response includes header `X-Api-Key` (a `zn_live_...` Bearer token for checking status) and `Payment-Receipt`.
+
+```python
+# pip install pympp
+from mpp.client import Client
+from mpp.methods.tempo import tempo, TempoAccount, ChargeIntent, CHAIN_ID
+
+account = TempoAccount.from_key("0x<your-private-key>")
+method = tempo(chain_id=CHAIN_ID, account=account, intents={"charge": ChargeIntent()})
+
+async with Client(methods=[method]) as client:
+    response = await client.post(
+        "https://api.zinc.com/agent/orders",
+        json={
+            "products": [{"url": "https://www.amazon.com/dp/B09V3KXJPB", "quantity": 1}],
+            "max_price": 5000,
+            "shipping_address": {
+                "first_name": "Jane", "last_name": "Doe",
+                "address_line1": "123 Main St", "city": "San Francisco",
+                "state": "CA", "postal_code": "94105",
+                "phone_number": "5551234567", "country": "US",
+            },
+        },
+    )
+    # Client handles the 402 → pay on-chain → retry flow automatically
+    order = response.json()
+    api_key = response.headers["X-Api-Key"]  # use for GET /orders/{id}
+```
+
+For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`.
+
+## 3. Track & manage orders
+
+### Get order — `GET /orders/{id}`
+
+Retrieve a single order by UUID (Bearer token: `ZINC_API_KEY` or the MPP `X-Api-Key`). The response carries everything, including:
+
+- `status`, `attempts`, `items`, `shipping_address`
+- `tracking_numbers` — array of `{ id, carrier, tracking_number, created_at }`. Carrier is e.g. `ups`, `fedex`, `usps`, `amazon`, `dhl`. Tracking is added automatically — there is no separate tracking endpoint.
+- `job_result` — once terminal: `success`, `error`, `error_type`, `estimated_delivery`, `merchant_order_ids`, and `price_components` (`subtotal`, `tax`, `shipping`, `total`, `currency`, `line_items`).
+
+```bash
+curl https://api.zinc.com/orders/<order_id> \
+  -H "Authorization: Bearer $ZINC_API_KEY"
+```
+
+### List orders — `GET /orders`
+
+Returns `{ orders: [...] }`. Requires Bearer token auth.
+
+### Cancel order — `POST /orders/{id}/cancel`
+
+Cancels an order **only while `pending`** (still queued). Once it's `in_progress` or done, it can't be cancelled. Returns `204 No Content` on success.
+
+```bash
+curl -X POST https://api.zinc.com/orders/<order_id>/cancel \
+  -H "Authorization: Bearer $ZINC_API_KEY"
+```
+
+## 4. Returns — `POST /returns`
+
+Open a return against a placed order. Requires Bearer token auth.
+
+**Request body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `order_id` | UUID | ✓ | The order being returned |
+| `items` | array of `{ order_item_id, quantity }` | ✓ | Items to return (quantity 1–100; `order_item_id` comes from the order's `items`) |
+| `reason` | enum | ✓ | `damaged`, `not_delivered`, `empty_box`, `wrong_item`, `defective`, `not_as_described`, `wrong_size`, `no_longer_needed`, `forced_cancellation`, `other` |
+| `notes` | string ≤2000 | — | Free-text detail |
+
+**Response (201):** `{ id, order_id, status, reason, notes, resolution_notes, items, label_urls, merchant_return_id, created_at, updated_at }`. Return `status`: `open` → `approved` | `denied` | `credited`. Print/ship via the URLs in `label_urls`.
+
+```bash
+curl -X POST https://api.zinc.com/returns \
+  -H "Authorization: Bearer $ZINC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": "8c2d...",
+    "items": [{ "order_item_id": "a1b2...", "quantity": 1 }],
+    "reason": "damaged",
+    "notes": "Arrived with a crushed corner."
+  }'
+```
+
+Also: `GET /returns` (list) and `GET /returns/{id}` (single).
 
 ## Error Handling
 
@@ -185,120 +237,17 @@ Orders process asynchronously and typically take **5–10 minutes**. After placi
 2. If still `pending` or `in_progress`, poll again in 3–5 minutes.
 3. Stop polling when the status is terminal.
 
-**Terminal statuses:** `order_placed`, `order_failed`, `cancelled`
+**Terminal statuses:** `order_placed`, `order_failed`, `cancelled`, `cancelled_by_retailer`
 **Non-terminal:** `pending`, `in_progress`
 
 If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minutes after order creation rather than polling in a loop.
 
 ## Safety
 
-- **Always confirm with the user** before placing an order (`POST /orders` or `POST /agent/orders`). This spends real money.
-- Reading orders (GET) is always safe.
+- **Always confirm with the user** before placing an order (`POST /orders` or `POST /agent/orders`) or opening a return. Orders spend real money.
+- Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
 - Validate that `max_price` is reasonable before submitting.
 - MPP orders charge the agent's crypto wallet — ensure sufficient balance before placing.
-
-## Managed Accounts (Retailer Credentials)
-
-Managed accounts let users supply their own retailer login credentials (e.g., Amazon) instead of relying on Zinc's default accounts. This is useful for users who want more control over order processing or need to use accounts with specific settings (Prime, business pricing, etc.).
-
-Docs: https://www.zinc.com/docs/v2/api-reference/managed-accounts
-
-All endpoints require `Authorization: Bearer $ZINC_API_KEY`.
-
-### Key Concepts
-
-- **Order locking:** Only one order processes at a time per managed account — prevents cart conflicts.
-- **Security:** Passwords and TOTP secrets are encrypted at rest and never returned in API responses.
-- **Email forwarding:** Each managed account gets a dedicated Zinc email address for receiving retailer verification/2FA codes. Configure your email provider to forward retailer emails to this address.
-
-### Create Managed Account — `POST /managed-accounts`
-
-Register retailer credentials with Zinc.
-
-**Request body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `email` | string | Yes | Retailer account email |
-| `password` | string | No | Retailer account password (encrypted at rest) |
-| `retailer` | string | No | Retailer identifier (e.g., `"amazon"`); null for default |
-| `totp_secret` | string | No | TOTP 2FA secret key — the 64-character secret, NOT the 6-digit code |
-| `retailer_config` | object | No | Retailer-specific configuration |
-
-**Response (201):** Returns a credential object with `id`, `short_id` (e.g., `zn_acct_a1b2c3d4`), `email`, `retailer`, `has_totp`, `has_forwarding`, `forwarding_email`, `retailer_config`, `created_at`, `updated_at`.
-
-```bash
-curl -X POST https://api.zinc.com/managed-accounts \
-  -H "Authorization: Bearer $ZINC_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "myaccount@example.com",
-    "password": "retailer-password",
-    "retailer": "amazon"
-  }'
-```
-
-### List Managed Accounts — `GET /managed-accounts`
-
-Returns `{ credentials: [...], total: <int> }` with all retailer credentials for your account.
-
-```bash
-curl https://api.zinc.com/managed-accounts \
-  -H "Authorization: Bearer $ZINC_API_KEY"
-```
-
-### Update Managed Account — `PUT /managed-accounts/{short_id}`
-
-Update credentials by `short_id`. All body fields are optional — only provided values are updated.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `email` | string | New email |
-| `password` | string | New password |
-| `retailer` | string | New retailer |
-| `totp_secret` | string | New TOTP secret |
-| `retailer_config` | object | New retailer config |
-
-```bash
-curl -X PUT https://api.zinc.com/managed-accounts/zn_acct_a1b2c3d4 \
-  -H "Authorization: Bearer $ZINC_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{ "password": "new-password" }'
-```
-
-### Delete Managed Account — `DELETE /managed-accounts/{short_id}`
-
-Permanently deletes credentials. Returns `204 No Content` on success.
-
-**Warning:** Deleting credentials that are actively in use by a processing order may cause the order to fail.
-
-```bash
-curl -X DELETE https://api.zinc.com/managed-accounts/zn_acct_a1b2c3d4 \
-  -H "Authorization: Bearer $ZINC_API_KEY"
-```
-
-### Using Managed Accounts with Orders
-
-Pass the `short_id` as `retailer_credentials_id` when creating an order:
-
-```bash
-curl -X POST https://api.zinc.com/orders \
-  -H "Authorization: Bearer $ZINC_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "retailer_credentials_id": "zn_acct_a1b2c3d4",
-    "products": [{ "url": "https://www.amazon.com/dp/B09V3KXJPB", "quantity": 1 }],
-    "max_price": 5000,
-    "shipping_address": { ... }
-  }'
-```
-
-### Setup Tips
-
-- **TOTP 2FA:** If the retailer account has 2FA enabled, provide the TOTP secret key (the 64-character base32 string, not the rotating 6-digit code). On Amazon: Login & Security → Enable 2FA → "Can't scan the barcode?" → copy the secret.
-- **Email forwarding:** Set up email filters to forward only retailer domain emails (e.g., from `amazon.com`) to the Zinc forwarding address — avoid forwarding all mail.
-- **Disable passkeys:** Passkeys interfere with automated login. On Amazon: Login & Security → Passkey → delete any passkeys. Use password + TOTP only.
-- **Best practice:** Create a dedicated retailer account for Zinc to avoid conflicts with personal orders.
 
 ## Support
 
