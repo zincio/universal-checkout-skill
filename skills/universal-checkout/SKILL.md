@@ -1,11 +1,13 @@
 ---
-name: zinc-orders
-description: Place, list, and retrieve orders via the Zinc API (zinc.com). Use when the user wants to buy a product from an online retailer, check order status, list recent orders, or anything involving the Zinc e-commerce ordering API. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for paying with crypto on-chain.
+name: universal-checkout
+description: Place, list, and retrieve orders across Amazon, Walmart, Target, Best Buy, eBay, and 50+ online retailers via the Zinc API (zinc.com). Use when the user wants to buy a product from an online retailer, check out, check order status, list recent orders, or anything involving programmatic e-commerce ordering. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for paying with crypto on-chain.
 ---
 
-# Zinc Orders
+# Universal Checkout
 
 Place and manage orders on online retailers through the Zinc API (`https://api.zinc.com`).
+
+> One API buys from Amazon, Walmart, Target, Best Buy, eBay, and 50+ other retailers. Live retailer list: `GET https://api.zinc.com/retailers`. If an agent only ever buys from one store, there are also retailer-specific skills (`amazon-checkout`, `walmart-checkout`, …) — see the repo README.
 
 ## Quick Start
 

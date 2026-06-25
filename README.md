@@ -1,15 +1,15 @@
-# Universal Checkout Skills
+# Zinc Skills
 
 [Agent Skills](https://agentskills.io) for **buying products and managing orders** through the [Zinc API](https://zinc.com) — programmatic checkout across Amazon, Walmart, Target, Best Buy, eBay, and 50+ other retailers with a single API.
 
-This repo ships **one universal skill** (every retailer, full order lifecycle) plus **per-retailer skills** for the retailers people search for by name. Install the universal one for general use; install a retailer-specific one when you only buy from a single store.
+This repo ships the **`universal-checkout`** skill (every retailer, full order lifecycle) plus **per-retailer skills** for the retailers people search for by name. Install the universal one for general use; install a retailer-specific one when you only buy from a single store.
 
 ## Skills
 
 | Skill | Buys from | Install |
 |-------|-----------|---------|
-| [`zinc-orders`](SKILL.md) | **Universal** — all supported retailers | `npx skills add zincio/universal-checkout-skill` |
-| [`amazon-checkout`](skills/amazon-checkout/SKILL.md) | Amazon | `npx skills add zincio/universal-checkout-skill --skill amazon-checkout` |
+| [`universal-checkout`](skills/universal-checkout/SKILL.md) | **Universal** — all supported retailers | `npx skills add zincio/skills --skill universal-checkout` |
+| [`amazon-checkout`](skills/amazon-checkout/SKILL.md) | Amazon | `npx skills add zincio/skills --skill amazon-checkout` |
 | [`walmart-checkout`](skills/walmart-checkout/SKILL.md) | Walmart | `… --skill walmart-checkout` |
 | [`target-checkout`](skills/target-checkout/SKILL.md) | Target | `… --skill target-checkout` |
 | [`bestbuy-checkout`](skills/bestbuy-checkout/SKILL.md) | Best Buy | `… --skill bestbuy-checkout` |
@@ -21,7 +21,7 @@ This repo ships **one universal skill** (every retailer, full order lifecycle) p
 | [`acehardware-checkout`](skills/acehardware-checkout/SKILL.md) | Ace Hardware | `… --skill acehardware-checkout` |
 | [`pokemoncenter-checkout`](skills/pokemoncenter-checkout/SKILL.md) | Pokémon Center | `… --skill pokemoncenter-checkout` |
 
-> **Which should I install?** The per-retailer skills are the same full lifecycle (order → track → manage) retargeted for one store — handy when an agent only ever buys from, say, Amazon, and for discovery. If you buy across multiple retailers, install the **universal** `zinc-orders` skill instead of stacking several near-identical retailer skills (overlapping descriptions can make skill triggering ambiguous).
+> **Which should I install?** The per-retailer skills are the same full lifecycle (order → track → manage) retargeted for one store — handy when an agent only ever buys from, say, Amazon, and for discovery. If you buy across multiple retailers, install **`universal-checkout`** instead of stacking several near-identical retailer skills (overlapping descriptions can make skill triggering ambiguous).
 >
 > Live supported-retailer list: `GET https://api.zinc.com/retailers`.
 
@@ -43,37 +43,36 @@ These are [Agent Skills](https://agentskills.io) — folders containing a `SKILL
 
 ```bash
 # Universal skill (recommended for most users)
-npx skills add zincio/universal-checkout-skill
+npx skills add zincio/skills --skill universal-checkout
 
 # A single retailer
-npx skills add zincio/universal-checkout-skill --skill amazon-checkout
+npx skills add zincio/skills --skill amazon-checkout
+
+# List everything in this repo
+npx skills add zincio/skills --list
 ```
 
-Or clone into your workspace `skills/` directory:
+Or clone and point your agent at the `skills/` directory:
 
 ```bash
-git clone https://github.com/zincio/universal-checkout-skill.git ./skills/universal-checkout-skill
+git clone https://github.com/zincio/skills.git
 ```
 
 Skills use progressive disclosure — at startup only `name` and `description` load; full instructions are read into context only when a matching task is detected.
 
 ### OpenClaw
 
-[OpenClaw](https://docs.openclaw.ai) loads skills from the workspace (`<workspace>/skills/`), user (`~/.openclaw/skills/`), and bundled locations. Install via [ClawHub](https://clawhub.ai/a5huynh/universal-checkout):
-
-```bash
-clawhub install universal-checkout
-```
-
-OpenClaw hot-reloads skills when `SKILL.md` changes — no restart needed.
+[OpenClaw](https://docs.openclaw.ai) loads skills from the workspace (`<workspace>/skills/`), user (`~/.openclaw/skills/`), and bundled locations. OpenClaw hot-reloads skills when `SKILL.md` changes — no restart needed.
 
 ## Repo layout & maintenance
 
 ```
-├── SKILL.md                       # universal skill (zinc-orders) — all retailers
-├── references/errors.md           # shared error reference
+├── references/errors.md           # shared error reference (single source)
 ├── skills/
-│   └── <retailer>-checkout/       # per-retailer skill (self-contained)
+│   ├── universal-checkout/         # the universal skill — all retailers (hand-maintained)
+│   │   ├── SKILL.md
+│   │   └── references/errors.md
+│   └── <retailer>-checkout/        # per-retailer skill (generated, self-contained)
 │       ├── SKILL.md
 │       └── references/errors.md
 └── tools/generate_skills.py       # generates every skills/<retailer>-checkout/ folder
@@ -85,11 +84,11 @@ OpenClaw hot-reloads skills when `SKILL.md` changes — no restart needed.
 python3 tools/generate_skills.py
 ```
 
-This keeps all retailers consistent and in sync with the live `/retailers` list from a single source.
+This regenerates all retailer skills and refreshes every skill's `references/errors.md` from the single source at `references/errors.md`, keeping them consistent and in sync with the live `/retailers` list. The `universal-checkout` SKILL.md is hand-maintained.
 
 ## Documentation
 
-- [SKILL.md](SKILL.md) — universal skill: endpoints, auth, examples, safety
+- [`universal-checkout` SKILL.md](skills/universal-checkout/SKILL.md) — endpoints, auth, examples, safety
 - [references/errors.md](references/errors.md) — HTTP status codes, API error codes, order processing error types
 - [Zinc API docs](https://www.zinc.com/docs) — full API reference
 

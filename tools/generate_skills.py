@@ -9,7 +9,7 @@ TEMPLATE or RETAILERS config below and re-run:
 Each retailer gets a self-contained skill folder (SKILL.md + references/errors.md)
 so it can be installed standalone via:
 
-    npx skills add zincio/universal-checkout-skill --skill <retailer>-checkout
+    npx skills add zincio/skills --skill <retailer>-checkout
 
 The retailer set is kept in sync with the live GA list at
 https://api.zinc.com/retailers (is_supported == true). Re-run after that list
@@ -82,7 +82,7 @@ BODY = """
 
 Place and manage orders on {{DISPLAY}} ({{DOMAIN}}) through the Zinc API (`https://api.zinc.com`).
 
-> **Powered by Zinc Universal Checkout.** The same API buys from {{DISPLAY}} and 50+ other retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, see the [universal checkout skill](https://github.com/zincio/universal-checkout-skill). Live retailer list: `GET https://api.zinc.com/retailers`.
+> **Powered by Zinc Universal Checkout.** The same API buys from {{DISPLAY}} and 50+ other retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
 
 ## Quick Start
 
@@ -370,6 +370,11 @@ def render(retailer):
     return out
 
 
+# Hand-maintained skills (SKILL.md is NOT generated) that still get the shared
+# references/errors.md refreshed from the single source above.
+SHARED_ERRORS_ONLY = ["universal-checkout"]
+
+
 def main():
     written = []
     for r in RETAILERS:
@@ -380,9 +385,17 @@ def main():
             f.write(render(r))
         shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
         written.append(f"{r['slug']}-checkout")
-    print(f"Generated {len(written)} skills:")
+
+    # Keep the error reference in sync for hand-maintained skills too.
+    for name in SHARED_ERRORS_ONLY:
+        refs = os.path.join(SKILLS_DIR, name, "references")
+        os.makedirs(refs, exist_ok=True)
+        shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
+
+    print(f"Generated {len(written)} retailer skills:")
     for w in written:
         print(f"  skills/{w}/")
+    print(f"Refreshed errors.md for: {', '.join(SHARED_ERRORS_ONLY)}")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ description: Buy products from 1-800-Flowers (1800flowers.com) and manage those 
 
 Place and manage orders on 1-800-Flowers (1800flowers.com) through the Zinc API (`https://api.zinc.com`).
 
-> **Powered by Zinc Universal Checkout.** The same API buys from 1-800-Flowers and 50+ other retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, see the [universal checkout skill](https://github.com/zincio/universal-checkout-skill). Live retailer list: `GET https://api.zinc.com/retailers`.
+> **Powered by Zinc Universal Checkout.** The same API buys from 1-800-Flowers and 50+ other retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
 
 ## Quick Start
 
