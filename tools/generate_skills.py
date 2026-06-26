@@ -91,7 +91,7 @@ Buy, track, and return products from {{DISPLAY}} ({{DOMAIN}}) through the Zinc A
 **Which auth method should I use?**
 
 - **`ZINC_API_KEY` env var is set** → Use `POST /orders` with Bearer token auth. This is the standard flow for pre-registered users.
-- **`TEMPO_PRIVATE_KEY` env var is set** (or user wants to pay with crypto) → Use `POST /agent/orders` with MPP. No account needed — pay per-order with on-chain crypto.
+- **`TEMPO_PRIVATE_KEY` env var is set** (or user wants to pay with crypto) → Use the MPP `/agent/*` endpoints. No account needed — pay per call with on-chain crypto: `POST /agent/orders` to buy, and `/agent/search` to discover ($0.01 per data call). `GET /retailers` is free.
 - **Neither is set** → Ask the user to either sign up at <https://app.zinc.com> for an API key, or provide a funded Tempo wallet key.
 
 All amounts are in **US cents** (e.g. `5000` = $50.00).
@@ -124,7 +124,9 @@ curl "https://api.zinc.com/search?q=cast+iron+skillet" \\
   -H "Authorization: Bearer $ZINC_API_KEY"
 ```
 
-`GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "{{SLUG}}"` for {{DISPLAY}}-only, then pass the `url` into an order.{{PRODUCT_SEARCH}}
+`GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "{{SLUG}}"` for {{DISPLAY}}-only, then pass the `url` into an order.
+
+Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the `pympp` `Client` handles the 402 → pay → retry automatically. `GET /retailers` is free.{{PRODUCT_SEARCH}}
 
 ## Place an order — `POST /orders` (or `POST /agent/orders` for MPP)
 
@@ -304,7 +306,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 
 PRODUCT_SEARCH_BLOCK = """
 
-For richer {{DISPLAY}} results and best-price comparison, use `GET /products/search?query=<term>&retailer={{SLUG}}` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer={{SLUG}}` to compare offers by **price and condition** before ordering."""
+For richer {{DISPLAY}} results and best-price comparison, use `GET /products/search?query=<term>&retailer={{SLUG}}` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer={{SLUG}}` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer={{SLUG}}`), $0.01 per call."""
 
 
 def render(retailer):

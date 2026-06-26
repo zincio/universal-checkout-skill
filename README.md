@@ -29,7 +29,7 @@ This repo ships the **`universal-checkout`** skill (every retailer, full order l
 
 Full US shopping lifecycle — discover → buy → track → return:
 
-- **Discover** — `GET /search` (cross-retailer, returns orderable URLs); `GET /products/search` + `GET /products/{id}/offers` for best-price comparison (Amazon & Walmart)
+- **Discover** — `GET /search` (cross-retailer, returns orderable URLs); `GET /products/search` + `GET /products/{id}/offers` for best-price comparison (Amazon & Walmart). On the MPP/crypto rail (no account), the same data is available via the metered `/agent/*` endpoints at $0.01/call; `GET /retailers` is free.
 - **Place orders** — `POST /orders` (API key) or `POST /agent/orders` (Machine Payments Protocol — pay per-order with on-chain crypto, no account needed), with condition filters, `handling_days_max`, variants, and `is_gift`
 - **Track & manage** — `GET /orders`, `GET /orders/{id}` (tracking + price breakdown), `POST /orders/{id}/cancel`
 - **Returns** — `POST /returns`, `GET /returns`

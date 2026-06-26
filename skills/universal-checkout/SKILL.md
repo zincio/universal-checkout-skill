@@ -14,7 +14,7 @@ Discover, buy, track, and return products across US online retailers through the
 **Which auth method should I use?**
 
 - **`ZINC_API_KEY` env var is set** → Use `POST /orders` with Bearer token auth. This is the standard flow for pre-registered users.
-- **`TEMPO_PRIVATE_KEY` env var is set** (or user wants to pay with crypto) → Use `POST /agent/orders` with MPP. No account needed — pay per-order with on-chain crypto.
+- **`TEMPO_PRIVATE_KEY` env var is set** (or user wants to pay with crypto) → Use the MPP `/agent/*` endpoints. No account needed — pay per call with on-chain crypto: `POST /agent/orders` to buy, and `/agent/search` · `/agent/products/*` to discover ($0.01 per data call). `GET /retailers` is free.
 - **Neither is set** → Ask the user to either sign up at <https://app.zinc.com> for an API key, or provide a funded Tempo wallet key.
 
 All amounts are in **US cents** (e.g. `5000` = $50.00). Orders ship to US addresses.
@@ -42,21 +42,34 @@ The `pympp` `Client` handles steps 1-3 automatically. You just make one `client.
 
 If the user gives you a product URL, skip to **Place an order**. Otherwise, find an orderable product first.
 
-### Cross-retailer search — `GET /search`
+> **Two rails for data endpoints.** With an **API key**, call the endpoints below with your Bearer token (free, billed against your account). On the **MPP/crypto path** (no Zinc account), call the `/agent/*` equivalents instead — each is paid **$0.01 per call** via MPP and returns a `Payment-Receipt` header. The `pympp` `Client` handles the 402 → pay → retry flow automatically for these GETs, exactly like for orders. `GET /retailers` (the supported-retailer list) is **free** on both rails — use it to discover what's buyable before paying for anything.
+
+### Cross-retailer search — `GET /search` · MPP: `GET /agent/search`
 
 Search across retailers (Amazon, Walmart, Target, Best Buy, Home Depot, Lowe's, Costco, eBay, Wayfair, Macy's, and more). Results are ranked by a quality signal (rating + review volume, price as tiebreaker) and woven across retailers so one doesn't dominate.
 
 ```bash
+# API key
 curl "https://api.zinc.com/search?q=cast+iron+skillet" \
   -H "Authorization: Bearer $ZINC_API_KEY"
 ```
 
 Returns `{ status, query, results: [...] }`. Each result has a directly **orderable `url`** plus `retailer`, `title`, `image`, `brand`, `price` (cents), `stars`, `num_reviews`, `available`. Pass a result's `url` straight into an order. *(Beta: no sort/filter params yet; coverage varies by query.)*
 
-### Product search & best-price offers (Amazon & Walmart)
+### Product search, offers & details (Amazon & Walmart)
 
-- **`GET /products/search?query=<term>&retailer=amazon|walmart&page=<n>`** — richer per-retailer results: `product_id`, `price`, `ship_price`, `prime`, `stars`, `num_reviews`, `available`, etc.
-- **`GET /products/{product_id}/offers?retailer=amazon|walmart`** — the available offers for a product, so you can compare **price and condition** and pick the cheapest acceptable one before ordering. Optional: `max_age` / `newer_than` (seconds, mutually exclusive), `async=true` to return immediately with `status=processing`.
+Best-price comparison and richer product data, on either rail:
+
+| Purpose | API key | MPP ($0.01/call) |
+|---------|---------|------------------|
+| Per-retailer search | `GET /products/search?query=<term>&retailer=amazon\|walmart&page=<n>` | `GET /agent/products/search?query=…&retailer=…` |
+| Offers / best price | `GET /products/{product_id}/offers?retailer=amazon\|walmart` | `GET /agent/products/offers?product_id=…&retailer=…` |
+| Product details | `GET /products/{product_id}?retailer=amazon\|walmart` | `GET /agent/products/details?product_id=…&retailer=…` |
+
+- **Search** returns `product_id`, `price`, `ship_price`, `prime`, `stars`, `num_reviews`, `available`, etc.
+- **Offers** lists the available offers for a product so you can compare **price and condition** and pick the cheapest acceptable one before ordering.
+- Offers/details accept optional `max_age` / `newer_than` (seconds, mutually exclusive) and `async=true` (return immediately with `status=processing`).
+- Agent (`/agent/*`) endpoints validate params *after* payment — but a *paying* caller with a bad param gets a `422` and is **not** charged; an unpaid/partial probe gets a `402` challenge.
 
 ## 2. Place an order — `POST /orders` (or `POST /agent/orders` for MPP)
 
