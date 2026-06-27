@@ -12,7 +12,7 @@ so it can be installed standalone via:
     npx skills add zincio/skills --skill <retailer>-checkout
 
 The retailer set is kept in sync with the live GA list at
-https://api.zinc.com/retailers (is_supported == true). Re-run after that list
+https://api.zinc.com/retailers (supported == true). Re-run after that list
 changes. Adding a retailer = one entry in RETAILERS below.
 
 Scope: US retailers, full lifecycle (discover -> buy -> track -> return).
@@ -27,45 +27,63 @@ SKILLS_DIR = os.path.join(REPO_ROOT, "skills")
 SHARED_ERRORS = os.path.join(REPO_ROOT, "references", "errors.md")
 
 # --- Retailer config -------------------------------------------------------
-# slug        : Zinc retailer identifier (matches /retailers `retailer` field)
-# display     : human/marketing name used in prose + frontmatter
-# domain      : retailer base domain
+# Mirrors the public `GET /retailers` flat catalog (apitwo #622): one entry per
+# brand, US-only. free_shipping / ship_threshold_cents track that endpoint's
+# free_shipping / free_shipping_threshold_cents (the endpoint is authoritative;
+# these are the current researched values surfaced for convenience).
+#
+# slug        : Zinc retailer identifier (matches /retailers `retailer`)
+# display     : `display_name` from /retailers (no "US")
+# domain      : `base_url`
 # example_url : illustrative product-page URL used in examples
 # psearch     : True if /products/search + /products/{id}/offers cover this retailer
+# free_shipping        : True | False | None (unknown — defer to /retailers)
+# ship_threshold_cents : 0 = always free; >0 = free over this; None = n/a
 # note        : optional retailer-specific tip (shown under "Retailer notes")
 RETAILERS = [
     {"slug": "amazon", "display": "Amazon", "domain": "amazon.com",
      "example_url": "https://www.amazon.com/dp/B09V3KXJPB", "psearch": True,
+     "free_shipping": True, "ship_threshold_cents": 3500,
      "note": "Amazon is the most broadly supported retailer — pass any amazon.com product URL. To buy a cheaper used or refurbished copy, allow those conditions via `condition_in` (e.g. `[\"New\", \"UsedLikeNew\"]`)."},
     {"slug": "walmart", "display": "Walmart", "domain": "walmart.com",
      "example_url": "https://www.walmart.com/ip/Apple-AirPods-Pro-2/1872350654", "psearch": True,
+     "free_shipping": True, "ship_threshold_cents": 3500,
      "note": "Walmart product URLs from walmart.com work directly, and product search + best-price offers are available for Walmart via the products endpoints."},
     {"slug": "target", "display": "Target", "domain": "target.com",
      "example_url": "https://www.target.com/p/-/A-81905346", "psearch": False,
+     "free_shipping": True, "ship_threshold_cents": 3500,
      "note": "Pass any target.com product URL."},
     {"slug": "bestbuy", "display": "Best Buy", "domain": "bestbuy.com",
      "example_url": "https://www.bestbuy.com/site/apple-airpods-pro-2nd-generation/4900964.p", "psearch": False,
+     "free_shipping": True, "ship_threshold_cents": 3500,
      "note": "Pass any bestbuy.com product URL."},
     {"slug": "ebay", "display": "eBay", "domain": "ebay.com",
      "example_url": "https://www.ebay.com/itm/256123456789", "psearch": False,
+     "free_shipping": False, "ship_threshold_cents": None,
      "note": "eBay supports fixed-price (Buy It Now) listings — pass the ebay.com item URL. Auction listings aren't supported."},
     {"slug": "homedepot", "display": "The Home Depot", "domain": "homedepot.com",
      "example_url": "https://www.homedepot.com/p/313041081", "psearch": False,
+     "free_shipping": True, "ship_threshold_cents": 4500,
      "note": "Pass any homedepot.com product URL."},
     {"slug": "lowes", "display": "Lowe's", "domain": "lowes.com",
      "example_url": "https://www.lowes.com/pd/5013499741", "psearch": False,
+     "free_shipping": True, "ship_threshold_cents": 4500,
      "note": "Pass any lowes.com product URL."},
     {"slug": "wayfair", "display": "Wayfair", "domain": "wayfair.com",
      "example_url": "https://www.wayfair.com/furniture/pdp-w100123456.html", "psearch": False,
+     "free_shipping": None, "ship_threshold_cents": None,
      "note": "Pass any wayfair.com product URL."},
     {"slug": "1800flowers", "display": "1-800-Flowers", "domain": "1800flowers.com",
      "example_url": "https://www.1800flowers.com/product-name-12345", "psearch": False,
+     "free_shipping": False, "ship_threshold_cents": None,
      "note": "Great for automating gifting — set `is_gift: true` to keep prices off the packing slip, and use `metadata` to track a gift message if your workflow has one."},
     {"slug": "acehardware", "display": "Ace Hardware", "domain": "acehardware.com",
      "example_url": "https://www.acehardware.com/departments/tools/power-tools/drills/2012345", "psearch": False,
+     "free_shipping": False, "ship_threshold_cents": None,
      "note": "Pass any acehardware.com product URL."},
     {"slug": "pokemoncenter", "display": "Pokémon Center", "domain": "pokemoncenter.com",
      "example_url": "https://www.pokemoncenter.com/product/100-10-1234", "psearch": False,
+     "free_shipping": True, "ship_threshold_cents": 2000,
      "note": "Inventory is often limited-drop — set a sensible `max_price` and expect `product_out_of_stock` on sold-out items."},
 ]
 
@@ -154,7 +172,7 @@ Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instea
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping when the order is below {{DISPLAY}}'s free-shipping threshold (see Retailer notes).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -297,6 +315,8 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 
 {{RETAILER_NOTE}}
 
+{{SHIPPING_NOTE}}
+
 ## Support
 
 - Email: support@zinc.com
@@ -309,10 +329,28 @@ PRODUCT_SEARCH_BLOCK = """
 For richer {{DISPLAY}} results and best-price comparison, use `GET /products/search?query=<term>&retailer={{SLUG}}` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer={{SLUG}}` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer={{SLUG}}`), $0.01 per call."""
 
 
+def shipping_note(r):
+    """Free-shipping line for the Retailer notes section, from /retailers fields."""
+    fs = r.get("free_shipping")
+    th = r.get("ship_threshold_cents")
+    if fs is None:
+        return ("**Shipping:** check `GET /retailers` for {{DISPLAY}}'s current "
+                "free-shipping terms, and include any shipping cost in `max_price`.")
+    if fs is False:
+        return ("**Shipping:** {{DISPLAY}} has no flat free-shipping threshold — "
+                "shipping is added per order, so leave room for it in `max_price`.")
+    if th == 0:
+        return "**Shipping:** {{DISPLAY}} ships free on all orders."
+    return (f"**Shipping:** {{{{DISPLAY}}}} ships free on orders over ${th // 100}. "
+            "For cheaper items, shipping is added to the order total, so leave room "
+            "for it in `max_price`. (Live terms: `GET /retailers`.)")
+
+
 def render(retailer):
     out = FRONTMATTER + BODY
     out = out.replace("{{PRODUCT_SEARCH}}", PRODUCT_SEARCH_BLOCK if retailer["psearch"] else "")
     out = out.replace("{{RETAILER_NOTE}}", retailer.get("note", ""))
+    out = out.replace("{{SHIPPING_NOTE}}", shipping_note(retailer))
     # token substitution last so it reaches injected blocks too
     out = out.replace("{{DISPLAY}}", retailer["display"])
     out = out.replace("{{SLUG}}", retailer["slug"])

@@ -7,7 +7,7 @@ description: Discover, buy, track, and return products across Amazon, Walmart, T
 
 Discover, buy, track, and return products across US online retailers through the Zinc API (`https://api.zinc.com`). One API covers Amazon, Walmart, Target, Best Buy, eBay, Home Depot, Lowe's, Wayfair, and 50+ more.
 
-> Live supported-retailer list: `GET https://api.zinc.com/retailers`. If an agent only ever buys from one store, there are also retailer-specific skills (`amazon-checkout`, `walmart-checkout`, …) — see the repo README.
+> Live supported-retailer list: `GET https://api.zinc.com/retailers` (free, no auth) — a flat catalog, one object per retailer, with `retailer` (slug), `display_name`, `supported`, `base_url`, `supported_countries`, and free-shipping info: `free_shipping` (bool) and `free_shipping_threshold_cents` (`0` = always free; a positive int = free over that many cents; `null` = no flat free-shipping offer). If an agent only ever buys from one store, there are also retailer-specific skills (`amazon-checkout`, `walmart-checkout`, …) — see the repo README.
 
 ## Quick Start
 
@@ -107,7 +107,8 @@ Best-price comparison and richer product data, on either rail:
 
 There is no shipping-*method* picker; control cost and speed with these:
 
-- **Price ceiling:** `max_price` — Zinc won't finalize above it (`max_price_exceeded` otherwise).
+- **Price ceiling:** `max_price` — Zinc won't finalize above it (`max_price_exceeded` otherwise). It's the **total** ceiling: item + shipping + tax.
+- **Budget for shipping:** below a retailer's free-shipping threshold, shipping is added to the total — leave room in `max_price`. Each retailer's `free_shipping` / `free_shipping_threshold_cents` is in `GET /retailers` (e.g. Amazon/Walmart/Target/Best Buy free over $35, Home Depot/Lowe's over $45).
 - **Best/cheapest price:** allow used or refurbished via `condition_in` (e.g. `["New", "UsedLikeNew"]`) so the bot can take a cheaper qualifying offer; use the **offers** endpoint above to compare first.
 - **Shipping speed:** `handling_days_max` caps seller handling time.
 

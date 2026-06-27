@@ -77,7 +77,7 @@ Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instea
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping when the order is below Lowe's's free-shipping threshold (see Retailer notes).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -219,6 +219,8 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 ## Retailer notes
 
 Pass any lowes.com product URL.
+
+**Shipping:** Lowe's ships free on orders over $45. For cheaper items, shipping is added to the order total, so leave room for it in `max_price`. (Live terms: `GET /retailers`.)
 
 ## Support
 
