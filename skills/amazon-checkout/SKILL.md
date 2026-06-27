@@ -1,6 +1,6 @@
 ---
 name: amazon-checkout
-description: Buy products from Amazon US (amazon.com) and manage those orders via the Zinc API (zinc.com). Use when the user wants to purchase, order, or check out an item from Amazon US, check Amazon US order status or tracking, cancel a Amazon US order, or return a Amazon US item. One API also covers Amazon, Walmart, Target, Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for paying with crypto on-chain.
+description: Buy products from Amazon US (amazon.com) and manage those orders via the Zinc API (zinc.com). Use when the user wants to purchase, order, or check out an item from Amazon US, check Amazon US order status or tracking, cancel a Amazon US order, or return a Amazon US item. One API also covers Amazon, Walmart, Target, Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for per-request payments via Stripe cards/wallets or Tempo stablecoins.
 ---
 
 # Amazon US Checkout
@@ -14,8 +14,8 @@ Buy, track, and return products from Amazon US (amazon.com) through the Zinc API
 **Which auth method should I use?**
 
 - **`ZINC_API_KEY` env var is set** → Use `POST /orders` with Bearer token auth. This is the standard flow for pre-registered users.
-- **`TEMPO_PRIVATE_KEY` env var is set** (or user wants to pay with crypto) → Use the MPP `/agent/*` endpoints. No account needed — pay per call with on-chain crypto: `POST /agent/orders` to buy, and `/agent/search` to discover ($0.01 per data call). `GET /retailers` is free.
-- **Neither is set** → Ask the user to either sign up at <https://app.zinc.com> for an API key, or provide a funded Tempo wallet key.
+- **MPP — no account needed** → Use the `/agent/*` endpoints; pay per request via **Tempo stablecoins** (`TEMPO_PRIVATE_KEY`, on-chain) or **Stripe** (cards/wallets via Stripe Link). `POST /agent/orders` to buy; `/agent/search` to discover ($0.01 per data call). `GET /retailers` is free.
+- **Neither is set** → Ask the user to either sign up at <https://app.zinc.com> for an API key, or set up an MPP payment method (Tempo wallet or Stripe). Try it without code at <https://agent.zinc.com>.
 
 All amounts are in **US cents** (e.g. `5000` = $50.00).
 
@@ -29,14 +29,13 @@ Authorization: Bearer $ZINC_API_KEY
 
 ### MPP Auth (Machine Payments Protocol)
 
-MPP uses a challenge-response flow — no API key needed upfront:
+MPP is an open standard for HTTP 402 machine-to-machine payments (spec: <https://mpp.dev>) — no API key needed upfront:
 
-1. Send `POST /agent/orders` with no auth → receive HTTP 402 with payment challenge
-2. The `pympp` client library resolves the challenge automatically (signs and submits an on-chain transaction)
-3. The request is retried with payment credentials → HTTP 201 order created
-4. Save the `X-Api-Key` response header — use it as a Bearer token for `GET /orders/{id}`
+1. Send the request (e.g. `POST /agent/orders`) with no `Authorization` header → receive HTTP `402 Payment Required` with one `WWW-Authenticate: Payment …` header per supported payment method
+2. The MPP client picks a method, completes payment, and retries with `Authorization: Payment <credential>` → success
+3. For orders, save the `X-Api-Key` response header — a Bearer token (scoped to that order) for `GET /orders/{id}`
 
-The `pympp` `Client` handles steps 1-3 automatically. You just make one `client.post()` call.
+**Payment methods** (the client auto-selects from the 402's `WWW-Authenticate` headers): **Stripe** (cards/wallets via Stripe Link / Shared Payment Tokens) or **Tempo** (stablecoins on-chain). Client libraries handle the flow automatically: Python `pip install pympp`, TypeScript `npm install mppx viem`, CLI `npx mppx`.
 
 ## Find a product (optional)
 
@@ -49,7 +48,7 @@ curl "https://api.zinc.com/search?q=cast+iron+skillet" \
 
 `GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "amazon"` for Amazon US-only, then pass the `url` into an order.
 
-Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the `pympp` `Client` handles the 402 → pay → retry automatically. `GET /retailers` is free.
+Paying via MPP (Stripe or Tempo, no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.
 
 For richer Amazon US results and best-price comparison, use `GET /products/search?query=<term>&retailer=amazon` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer=amazon` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer=amazon`), $0.01 per call.
 
@@ -106,9 +105,9 @@ curl -X POST https://api.zinc.com/orders \
   }'
 ```
 
-### Paying with crypto (MPP) — `POST /agent/orders`
+### Paying via MPP — `POST /agent/orders`
 
-Same request body, no API key. Agent pays `max_price` upfront via crypto deposit; a `$1.00` API fee is reserved (bot spends at most `max_price - $1`). On success: charged `actual_price + $1`, remainder refunded via Stripe. On failure: full refund. The HTTP 201 response includes header `X-Api-Key` (a `zn_live_...` Bearer token for status checks) and `Payment-Receipt`.
+Same request body, no API key — pay inline via Stripe or Tempo. Agent authorizes `max_price + $1.00` upfront (the `$1` is the Zinc API fee, so the full `max_price` stays available to the retailer). **Validation runs before payment:** an invalid URL/retailer/address returns HTTP 400 with no charge, and the credential stays reusable. On success: charged `actual_total + $1`, with any difference under `max_price` auto-refunded; on failure: full refund (server-side). The HTTP 201 response includes `X-Api-Key` (a `zn_live_...` Bearer token, scoped to this order) and `Payment-Receipt`. Quick test: `npx mppx https://api.zinc.com/agent/orders --method POST --body '…'`.
 
 ```python
 # pip install pympp
@@ -132,12 +131,12 @@ async with Client(methods=[method]) as client:
             },
         },
     )
-    # Client handles the 402 → pay on-chain → retry flow automatically
+    # Client handles the 402 → pay → retry flow automatically
     order = response.json()
     api_key = response.headers["X-Api-Key"]  # use for GET /orders/{id}
 ```
 
-For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`.
+For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`. TypeScript is equivalent via `mppx`. To use Stripe directly (Shared Payment Tokens), see <https://docs.zinc.com/v2/mpp#using-stripe-with-mpp>.
 
 ## Track & manage orders
 
@@ -196,7 +195,7 @@ Key points:
 - Order processing failures appear in the order's `job_result.error_type` field
 - Common issues: `max_price_exceeded`, `product_out_of_stock`, `invalid_shipping_address`
 - MPP payment failures return HTTP 402 with `{ error: { code: "payment_failed", details: { reason: "..." } } }`
-- HTTP 402 without `payment_failed` code means the server is issuing a payment challenge (normal MPP flow — the `pympp` client handles this automatically)
+- HTTP 402 without `payment_failed` code means the server is issuing a payment challenge (normal MPP flow — the MPP client handles this automatically)
 
 ## Order Status Tracking
 
@@ -216,7 +215,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - **Always confirm with the user** before placing an order (`POST /orders` or `POST /agent/orders`) or opening a return. Orders spend real money.
 - Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
 - Validate that `max_price` is reasonable before submitting.
-- MPP orders charge the agent's crypto wallet — ensure sufficient balance before placing.
+- MPP orders authorize `max_price + $1` on the agent's payment method (Stripe card/wallet or Tempo wallet) — ensure sufficient balance/credit before placing.
 
 ## Support
 
