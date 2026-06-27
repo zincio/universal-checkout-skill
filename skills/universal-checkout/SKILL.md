@@ -67,7 +67,7 @@ Returns `{ status, query, results: [...] }`. Each result has a directly **ordera
 
 ### Product search, offers & details (Amazon & Walmart)
 
-Best-price comparison and richer product data, on either rail:
+Best-price comparison and richer product data, on either rail. **Limited retailer coverage — currently Amazon & Walmart only** (for everything else, use the cross-retailer `/search` above):
 
 | Purpose | API key | MPP ($0.01/call) |
 |---------|---------|------------------|
@@ -207,7 +207,7 @@ For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`. TypeScript is 
 Retrieve a single order by UUID (Bearer token: `ZINC_API_KEY` or the MPP `X-Api-Key`). The response carries everything, including:
 
 - `status`, `attempts`, `items`, `shipping_address`
-- `tracking_numbers` — array of `{ id, carrier, tracking_number, created_at }`. Carrier is e.g. `ups`, `fedex`, `usps`, `amazon`, `dhl`. Tracking is added automatically — there is no separate tracking endpoint.
+- `tracking_numbers` — array of `{ id, carrier, tracking_number, status, checkpoints, created_at }`. `status` (always present) is the carrier-derived shipment state: `pending` | `in_transit` | `delivered`. `checkpoints` is the per-scan timeline (most recent first), each `{ checkpoint_time, status, message, city, state, country, zip, location }`. Carrier is e.g. `ups`, `fedex`, `usps`, `amazon`, `dhl`. Added automatically — there is no separate tracking endpoint.
 - `job_result` — once terminal: `success`, `error`, `error_type`, `estimated_delivery`, `merchant_order_ids`, and `price_components` (`subtotal`, `tax`, `shipping`, `total`, `currency`, `line_items`).
 
 ```bash
@@ -217,7 +217,7 @@ curl https://api.zinc.com/orders/<order_id> \
 
 ### List orders — `GET /orders`
 
-Returns `{ orders: [...] }`. Requires Bearer token auth.
+Returns `{ orders: [...] }`. Requires Bearer token auth. Each order's tracking numbers include `status` by default; add `?include=tracking_events` to also get the full `checkpoints` timeline.
 
 ### Cancel order — `POST /orders/{id}/cancel`
 
@@ -286,7 +286,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 
 - **Always confirm with the user** before placing an order (`POST /orders` or `POST /agent/orders`) or opening a return. Orders spend real money.
 - Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
-- Validate that `max_price` is reasonable before submitting.
+- Set `max_price` to cover the **full** cost — item price **+ tax + shipping/handling** — not just the item. It's the total ceiling Zinc won't exceed, so too-low a value trips `max_price_exceeded`.
 - MPP orders authorize `max_price + $1` on the agent's payment method (Stripe card/wallet or Tempo wallet) — ensure sufficient balance/credit before placing.
 
 ## Support

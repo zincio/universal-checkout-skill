@@ -4,9 +4,10 @@
 The retailer catalog is driven by the live public `GET https://api.zinc.com/retailers`
 endpoint — the single source of truth — so the skills stay in sync automatically.
 Everything retailer-specific that matters (name, domain, free-shipping terms)
-comes from there; the endpoint doesn't carry an example product URL (derived from
-the domain), which retailers have /products/search (one constant), or genuine
-order caveats (a sparse CONSTRAINTS map). Adding a retailer needs no code change.
+comes from there; the only things not in the endpoint are an example product URL
+(derived from the domain) and which retailers have /products/search (one
+constant). Retailer-specific order constraints are NOT hardcoded — the order API
+reports them at request time. Adding a retailer needs no code change.
 
 Usage:
 
@@ -35,30 +36,23 @@ RETAILERS_URL = "https://api.zinc.com/retailers"
 
 # --- The little the catalog can't tell us ----------------------------------
 # /retailers is the source of truth for the catalog (which retailers exist,
-# display_name, base_url, free-shipping terms). Three things it intentionally
-# doesn't carry — handled here without a per-retailer overlay:
+# display_name, base_url, free-shipping terms). Only two things it doesn't carry
+# are handled here, and neither is a per-retailer overlay:
 #
 #   * example product URL  -> derived from base_url. Agents get real URLs from
 #     /search or the user; they never build them from patterns, so a placeholder
 #     that shows the request *schema* is all an example needs.
 #   * products-API coverage -> one capability constant (not 11 entries).
-#   * genuine order-affecting caveats -> a sparse map; most retailers need none.
 #
-# So adding a retailer is ZERO code: once it's `supported` in /retailers,
-# --refresh + regenerate produces a complete skill.
+# Retailer-specific order constraints are deliberately NOT encoded here — the
+# order API reports them at request time. So adding a retailer is ZERO code:
+# once it's `supported` in /retailers, --refresh + regenerate produces a skill.
 
 # Internal / non-consumer catalog entries we don't publish a checkout skill for.
 EXCLUDE = {"zinc"}
 
 # Retailers where GET /products/search + /products/{id}/offers apply.
 PRODUCTS_API_RETAILERS = {"amazon", "walmart"}
-
-# Genuine, order-affecting constraints worth telling the agent. Keep sparse —
-# only add one when it changes whether/how an order succeeds.
-CONSTRAINTS = {
-    "ebay": "eBay supports fixed-price (Buy It Now) listings only — auction listings aren't supported.",
-    "pokemoncenter": "Inventory is often limited-drop; expect `product_out_of_stock` on sold-out items.",
-}
 
 
 def load_catalog(refresh):
@@ -99,7 +93,6 @@ def build_retailers(catalog):
             "psearch": slug in PRODUCTS_API_RETAILERS,
             "free_shipping": raw.get("free_shipping"),  # None until /retailers exposes it
             "ship_threshold_cents": raw.get("free_shipping_threshold_cents"),
-            "constraint": CONSTRAINTS.get(slug),
         })
     return configs
 
@@ -253,7 +246,7 @@ For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`. TypeScript is 
 
 Retrieve a single order by UUID (Bearer token: `ZINC_API_KEY` or the MPP `X-Api-Key`). The response includes `status`, `items`, `shipping_address`, plus:
 
-- `tracking_numbers` — array of `{ id, carrier, tracking_number, created_at }` (carrier e.g. `ups`, `fedex`, `usps`, `amazon`). Added automatically; there is no separate tracking endpoint.
+- `tracking_numbers` — array of `{ id, carrier, tracking_number, status, checkpoints, created_at }`. `status` (always present) is the carrier-derived shipment state: `pending` | `in_transit` | `delivered`. `checkpoints` is the per-scan timeline (most recent first), each `{ checkpoint_time, status, message, city, state, country, zip, location }`. Added automatically; there is no separate tracking endpoint.
 - `job_result` (once terminal) — `success`, `error`, `error_type`, `estimated_delivery`, `merchant_order_ids`, and `price_components` (`subtotal`, `tax`, `shipping`, `total`, `currency`).
 
 ```bash
@@ -263,7 +256,7 @@ curl https://api.zinc.com/orders/<order_id> \\
 
 ### List orders — `GET /orders`
 
-Returns `{ orders: [...] }`. Requires Bearer token auth.
+Returns `{ orders: [...] }`. Requires Bearer token auth. Each order's tracking numbers include `status` by default; add `?include=tracking_events` to also get the full `checkpoints` timeline.
 
 ### Cancel order — `POST /orders/{id}/cancel`
 
@@ -323,7 +316,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 
 - **Always confirm with the user** before placing an order (`POST /orders` or `POST /agent/orders`) or opening a return. Orders spend real money.
 - Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
-- Validate that `max_price` is reasonable before submitting.
+- Set `max_price` to cover the **full** cost — item price **+ tax + shipping/handling** — not just the item. It's the total ceiling Zinc won't exceed, so too-low a value trips `max_price_exceeded`.
 - MPP orders authorize `max_price + $1` on the agent's payment method (Stripe card/wallet or Tempo wallet) — ensure sufficient balance/credit before placing.
 
 {{NOTES_SECTION}}## Support
@@ -335,7 +328,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 
 PRODUCT_SEARCH_BLOCK = """
 
-For richer {{DISPLAY}} results and best-price comparison, use `GET /products/search?query=<term>&retailer={{SLUG}}` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer={{SLUG}}` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer={{SLUG}}`), $0.01 per call."""
+{{DISPLAY}} is one of the few retailers with richer product data (currently Amazon & Walmart only). For best-price comparison, use `GET /products/search?query=<term>&retailer={{SLUG}}` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer={{SLUG}}` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer={{SLUG}}`), $0.01 per call."""
 
 
 def shipping_note(r):
@@ -355,12 +348,13 @@ def shipping_note(r):
 
 
 def notes_section(r):
-    """The optional '## Retailer notes' block — only rendered if there's anything
-    real to say (a genuine constraint and/or known free-shipping terms)."""
-    parts = [p for p in (r.get("constraint"), shipping_note(r)) if p]
-    if not parts:
+    """The optional '## Retailer notes' block — only rendered when /retailers
+    gives us something real to say (known free-shipping terms). Retailer-specific
+    constraints aren't hardcoded here; the order API reports them at request time."""
+    sn = shipping_note(r)
+    if not sn:
         return ""
-    return "## Retailer notes\n\n" + "\n\n".join(parts) + "\n\n"
+    return "## Retailer notes\n\n" + sn + "\n\n"
 
 
 def render(retailer):
@@ -378,6 +372,33 @@ def render(retailer):
 # Hand-maintained skills (SKILL.md is NOT generated) that still get the shared
 # references/errors.md refreshed from the single source above.
 SHARED_ERRORS_ONLY = ["universal-checkout"]
+
+README = os.path.join(REPO_ROOT, "README.md")
+TABLE_START = "<!-- SKILLS-TABLE:START (generated by tools/generate_skills.py — do not edit by hand) -->"
+TABLE_END = "<!-- SKILLS-TABLE:END -->"
+
+
+def update_readme_table(retailers):
+    """Rewrite the skills table in README.md between the markers, so the retailer
+    list there stays driven by /retailers too (not hand-maintained)."""
+    rows = [
+        "| Skill | Buys from | Install |",
+        "|-------|-----------|---------|",
+        "| [`universal-checkout`](skills/universal-checkout/SKILL.md) | **Universal** — all supported retailers | `npx skills add zincio/skills --skill universal-checkout` |",
+    ]
+    for r in retailers:
+        s = r["slug"]
+        rows.append(
+            f"| [`{s}-checkout`](skills/{s}-checkout/SKILL.md) | {r['display']} | "
+            f"`npx skills add zincio/skills --skill {s}-checkout` |"
+        )
+    block = TABLE_START + "\n" + "\n".join(rows) + "\n" + TABLE_END
+    with open(README) as f:
+        text = f.read()
+    pre, _, rest = text.partition(TABLE_START)
+    _, _, post = rest.partition(TABLE_END)
+    with open(README, "w") as f:
+        f.write(pre + block + post)
 
 
 def main():
@@ -401,10 +422,13 @@ def main():
         os.makedirs(refs, exist_ok=True)
         shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
 
+    update_readme_table(retailers)
+
     print(f"Generated {len(written)} retailer skills from {len(catalog)} cataloged retailers:")
     for w in written:
         print(f"  skills/{w}/")
     print(f"Refreshed errors.md for: {', '.join(SHARED_ERRORS_ONLY)}")
+    print("Updated README skills table.")
 
 
 if __name__ == "__main__":
