@@ -78,16 +78,19 @@ Skills use progressive disclosure — at startup only `name` and `description` l
 │   └── <retailer>-checkout/        # per-retailer skill (generated, self-contained)
 │       ├── SKILL.md
 │       └── references/errors.md
-└── tools/generate_skills.py       # generates every skills/<retailer>-checkout/ folder
+└── tools/
+    ├── generate_skills.py         # generates every skills/<retailer>-checkout/ folder
+    └── retailers.json             # committed snapshot of GET /retailers (the catalog)
 ```
 
-**The per-retailer skills are generated, not hand-edited.** To change them — or add a retailer — edit the template / `RETAILERS` config in [`tools/generate_skills.py`](tools/generate_skills.py) and re-run:
+**The per-retailer skills are generated, not hand-edited.** The retailer *catalog* (which retailers exist, display name, base URL, free-shipping terms) comes from the live `GET https://api.zinc.com/retailers` endpoint — the single source of truth — captured in `tools/retailers.json`. The endpoint doesn't carry the example product URL, `psearch` flag, or editorial notes, so those live in a small `OVERLAY` in the generator.
 
 ```bash
-python3 tools/generate_skills.py
+python3 tools/generate_skills.py            # regenerate from the committed snapshot
+python3 tools/generate_skills.py --refresh  # re-fetch /retailers, update the snapshot, regenerate
 ```
 
-This regenerates all retailer skills and refreshes every skill's `references/errors.md` from the single source at `references/errors.md`, keeping them consistent and in sync with the live `/retailers` list. The `universal-checkout` SKILL.md is hand-maintained.
+Adding a retailer: once it's `supported` in `/retailers`, run `--refresh` and add a 3-field `OVERLAY` entry (`example_url`, `psearch`, `note`) — the generator prints any supported retailer missing one. This also refreshes every skill's `references/errors.md` from the single source at `references/errors.md`. The `universal-checkout` SKILL.md is hand-maintained.
 
 ## Documentation
 

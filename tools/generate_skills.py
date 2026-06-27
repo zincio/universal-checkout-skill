@@ -1,91 +1,129 @@
 #!/usr/bin/env python3
 """Generate per-retailer Zinc checkout skills from one template.
 
-Single source of truth for every `skills/<retailer>-checkout/` folder. Edit the
-TEMPLATE or RETAILERS config below and re-run:
+The retailer *catalog* (which retailers exist, display name, base URL,
+supported countries, free-shipping terms) is driven by the live public
+`GET https://api.zinc.com/retailers` endpoint — the single source of truth — so
+the skills stay in sync automatically. The endpoint deliberately does NOT carry
+three things the SKILL.md template needs, so those live in a small local OVERLAY
+keyed by slug:
 
-    python3 tools/generate_skills.py
+  * example_url — an illustrative product URL for code samples
+  * psearch     — whether /products/search + /products/{id}/offers cover it
+  * note        — editorial, retailer-specific guidance
 
-Each retailer gets a self-contained skill folder (SKILL.md + references/errors.md)
-so it can be installed standalone via:
+Usage:
 
-    npx skills add zincio/skills --skill <retailer>-checkout
+    python3 tools/generate_skills.py            # generate from the committed snapshot
+    python3 tools/generate_skills.py --refresh  # re-fetch /retailers, update snapshot, generate
 
-The retailer set is kept in sync with the live GA list at
-https://api.zinc.com/retailers (supported == true). Re-run after that list
-changes. Adding a retailer = one entry in RETAILERS below.
+`--refresh` writes tools/retailers.json (committed) so builds are reproducible
+and catalog changes show up as a reviewable diff. A supported retailer with no
+OVERLAY entry is skipped and logged loudly (it needs an example_url + note).
 
+Each retailer gets a self-contained skill folder (SKILL.md + references/errors.md),
+installable standalone via `npx skills add zincio/skills --skill <retailer>-checkout`.
 Scope: US retailers, full lifecycle (discover -> buy -> track -> return).
-Endpoint fields mirror the live docs at https://www.zinc.com/docs.
 """
 
+import json
 import os
 import shutil
+import sys
+import urllib.request
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILLS_DIR = os.path.join(REPO_ROOT, "skills")
 SHARED_ERRORS = os.path.join(REPO_ROOT, "references", "errors.md")
+SNAPSHOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "retailers.json")
+RETAILERS_URL = "https://api.zinc.com/retailers"
 
-# --- Retailer config -------------------------------------------------------
-# Mirrors the public `GET /retailers` flat catalog (apitwo #622): one entry per
-# brand, US-only. free_shipping / ship_threshold_cents track that endpoint's
-# free_shipping / free_shipping_threshold_cents (the endpoint is authoritative;
-# these are the current researched values surfaced for convenience).
-#
-# slug        : Zinc retailer identifier (matches /retailers `retailer`)
-# display     : `display_name` from /retailers (no "US")
-# domain      : `base_url`
-# example_url : illustrative product-page URL used in examples
-# psearch     : True if /products/search + /products/{id}/offers cover this retailer
-# free_shipping        : True | False | None (unknown — defer to /retailers)
-# ship_threshold_cents : 0 = always free; >0 = free over this; None = n/a
-# note        : optional retailer-specific tip (shown under "Retailer notes")
-RETAILERS = [
-    {"slug": "amazon", "display": "Amazon", "domain": "amazon.com",
-     "example_url": "https://www.amazon.com/dp/B09V3KXJPB", "psearch": True,
-     "free_shipping": True, "ship_threshold_cents": 3500,
-     "note": "Amazon is the most broadly supported retailer — pass any amazon.com product URL. To buy a cheaper used or refurbished copy, allow those conditions via `condition_in` (e.g. `[\"New\", \"UsedLikeNew\"]`)."},
-    {"slug": "walmart", "display": "Walmart", "domain": "walmart.com",
-     "example_url": "https://www.walmart.com/ip/Apple-AirPods-Pro-2/1872350654", "psearch": True,
-     "free_shipping": True, "ship_threshold_cents": 3500,
-     "note": "Walmart product URLs from walmart.com work directly, and product search + best-price offers are available for Walmart via the products endpoints."},
-    {"slug": "target", "display": "Target", "domain": "target.com",
-     "example_url": "https://www.target.com/p/-/A-81905346", "psearch": False,
-     "free_shipping": True, "ship_threshold_cents": 3500,
-     "note": "Pass any target.com product URL."},
-    {"slug": "bestbuy", "display": "Best Buy", "domain": "bestbuy.com",
-     "example_url": "https://www.bestbuy.com/site/apple-airpods-pro-2nd-generation/4900964.p", "psearch": False,
-     "free_shipping": True, "ship_threshold_cents": 3500,
-     "note": "Pass any bestbuy.com product URL."},
-    {"slug": "ebay", "display": "eBay", "domain": "ebay.com",
-     "example_url": "https://www.ebay.com/itm/256123456789", "psearch": False,
-     "free_shipping": False, "ship_threshold_cents": None,
-     "note": "eBay supports fixed-price (Buy It Now) listings — pass the ebay.com item URL. Auction listings aren't supported."},
-    {"slug": "homedepot", "display": "The Home Depot", "domain": "homedepot.com",
-     "example_url": "https://www.homedepot.com/p/313041081", "psearch": False,
-     "free_shipping": True, "ship_threshold_cents": 4500,
-     "note": "Pass any homedepot.com product URL."},
-    {"slug": "lowes", "display": "Lowe's", "domain": "lowes.com",
-     "example_url": "https://www.lowes.com/pd/5013499741", "psearch": False,
-     "free_shipping": True, "ship_threshold_cents": 4500,
-     "note": "Pass any lowes.com product URL."},
-    {"slug": "wayfair", "display": "Wayfair", "domain": "wayfair.com",
-     "example_url": "https://www.wayfair.com/furniture/pdp-w100123456.html", "psearch": False,
-     "free_shipping": None, "ship_threshold_cents": None,
-     "note": "Pass any wayfair.com product URL."},
-    {"slug": "1800flowers", "display": "1-800-Flowers", "domain": "1800flowers.com",
-     "example_url": "https://www.1800flowers.com/product-name-12345", "psearch": False,
-     "free_shipping": False, "ship_threshold_cents": None,
-     "note": "Great for automating gifting — set `is_gift: true` to keep prices off the packing slip, and use `metadata` to track a gift message if your workflow has one."},
-    {"slug": "acehardware", "display": "Ace Hardware", "domain": "acehardware.com",
-     "example_url": "https://www.acehardware.com/departments/tools/power-tools/drills/2012345", "psearch": False,
-     "free_shipping": False, "ship_threshold_cents": None,
-     "note": "Pass any acehardware.com product URL."},
-    {"slug": "pokemoncenter", "display": "Pokémon Center", "domain": "pokemoncenter.com",
-     "example_url": "https://www.pokemoncenter.com/product/100-10-1234", "psearch": False,
-     "free_shipping": True, "ship_threshold_cents": 2000,
-     "note": "Inventory is often limited-drop — set a sensible `max_price` and expect `product_out_of_stock` on sold-out items."},
-]
+# --- Editorial overlay -----------------------------------------------------
+# Per-slug fields the /retailers endpoint does not provide. `display` is an
+# optional override for when the catalog's display_name isn't the polished brand
+# (e.g. "Lowes" -> "Lowe's"). `fs_fallback` = (free_shipping, threshold_cents)
+# used ONLY when the endpoint hasn't exposed free_shipping yet (pre-#622); once
+# the endpoint returns those fields, the endpoint wins and these are ignored.
+OVERLAY = {
+    "amazon": {"display": "Amazon", "psearch": True, "example_url": "https://www.amazon.com/dp/B09V3KXJPB",
+               "fs_fallback": (True, 3500),
+               "note": "Amazon is the most broadly supported retailer — pass any amazon.com product URL. To buy a cheaper used or refurbished copy, allow those conditions via `condition_in` (e.g. `[\"New\", \"UsedLikeNew\"]`)."},
+    "walmart": {"psearch": True, "example_url": "https://www.walmart.com/ip/Apple-AirPods-Pro-2/1872350654",
+                "fs_fallback": (True, 3500),
+                "note": "Walmart product URLs from walmart.com work directly, and product search + best-price offers are available for Walmart via the products endpoints."},
+    "target": {"psearch": False, "example_url": "https://www.target.com/p/-/A-81905346",
+               "fs_fallback": (True, 3500), "note": "Pass any target.com product URL."},
+    "bestbuy": {"psearch": False, "example_url": "https://www.bestbuy.com/site/apple-airpods-pro-2nd-generation/4900964.p",
+                "fs_fallback": (True, 3500), "note": "Pass any bestbuy.com product URL."},
+    "ebay": {"psearch": False, "example_url": "https://www.ebay.com/itm/256123456789",
+             "fs_fallback": (False, None),
+             "note": "eBay supports fixed-price (Buy It Now) listings — pass the ebay.com item URL. Auction listings aren't supported."},
+    "homedepot": {"display": "The Home Depot", "psearch": False, "example_url": "https://www.homedepot.com/p/313041081",
+                  "fs_fallback": (True, 4500), "note": "Pass any homedepot.com product URL."},
+    "lowes": {"display": "Lowe's", "psearch": False, "example_url": "https://www.lowes.com/pd/5013499741",
+              "fs_fallback": (True, 4500), "note": "Pass any lowes.com product URL."},
+    "wayfair": {"psearch": False, "example_url": "https://www.wayfair.com/furniture/pdp-w100123456.html",
+                "fs_fallback": (None, None), "note": "Pass any wayfair.com product URL."},
+    "1800flowers": {"display": "1-800-Flowers", "psearch": False, "example_url": "https://www.1800flowers.com/product-name-12345",
+                    "fs_fallback": (False, None),
+                    "note": "Great for automating gifting — set `is_gift: true` to keep prices off the packing slip, and use `metadata` to track a gift message if your workflow has one."},
+    "acehardware": {"display": "Ace Hardware", "psearch": False, "example_url": "https://www.acehardware.com/departments/tools/power-tools/drills/2012345",
+                    "fs_fallback": (False, None), "note": "Pass any acehardware.com product URL."},
+    "pokemoncenter": {"display": "Pokémon Center", "psearch": False, "example_url": "https://www.pokemoncenter.com/product/100-10-1234",
+                      "fs_fallback": (True, 2000),
+                      "note": "Inventory is often limited-drop — set a sensible `max_price` and expect `product_out_of_stock` on sold-out items."},
+}
+
+
+def load_catalog(refresh):
+    """Return the /retailers list, from the live endpoint (--refresh) or snapshot."""
+    if refresh:
+        with urllib.request.urlopen(RETAILERS_URL, timeout=30) as resp:
+            data = json.load(resp)
+        with open(SNAPSHOT, "w") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print(f"Refreshed snapshot from {RETAILERS_URL}")
+    else:
+        if not os.path.exists(SNAPSHOT):
+            sys.exit("No tools/retailers.json snapshot — run with --refresh first.")
+        with open(SNAPSHOT) as f:
+            data = json.load(f)
+    return data.get("retailers", data) if isinstance(data, dict) else data
+
+
+def is_supported(raw):
+    # New flat shape uses `supported`; pre-#622 shape used `is_supported`.
+    return raw.get("supported", raw.get("is_supported", False))
+
+
+def build_retailers(catalog):
+    """Merge the live catalog with the editorial OVERLAY. Returns (configs, skipped)."""
+    configs, skipped = [], []
+    for raw in catalog:
+        if not is_supported(raw):
+            continue
+        slug = raw.get("retailer")
+        ov = OVERLAY.get(slug)
+        if not ov:
+            skipped.append(slug)
+            continue
+        # free-shipping: endpoint wins when it exposes the field; else fallback.
+        if "free_shipping" in raw:
+            fs, th = raw.get("free_shipping"), raw.get("free_shipping_threshold_cents")
+        else:
+            fs, th = ov["fs_fallback"]
+        configs.append({
+            "slug": slug,
+            "display": ov.get("display") or raw.get("display_name") or slug,
+            "domain": raw.get("base_url") or slug,
+            "example_url": ov["example_url"],
+            "psearch": ov["psearch"],
+            "free_shipping": fs,
+            "ship_threshold_cents": th,
+            "note": ov["note"],
+        })
+    return configs, skipped
 
 # --- Template --------------------------------------------------------------
 # Tokens: {{DISPLAY}} {{SLUG}} {{DOMAIN}} {{EXAMPLE_URL}}
@@ -365,8 +403,12 @@ SHARED_ERRORS_ONLY = ["universal-checkout"]
 
 
 def main():
+    refresh = "--refresh" in sys.argv[1:]
+    catalog = load_catalog(refresh)
+    retailers, skipped = build_retailers(catalog)
+
     written = []
-    for r in RETAILERS:
+    for r in retailers:
         folder = os.path.join(SKILLS_DIR, f"{r['slug']}-checkout")
         refs = os.path.join(folder, "references")
         os.makedirs(refs, exist_ok=True)
@@ -381,10 +423,13 @@ def main():
         os.makedirs(refs, exist_ok=True)
         shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
 
-    print(f"Generated {len(written)} retailer skills:")
+    print(f"Generated {len(written)} retailer skills from {len(catalog)} cataloged retailers:")
     for w in written:
         print(f"  skills/{w}/")
     print(f"Refreshed errors.md for: {', '.join(SHARED_ERRORS_ONLY)}")
+    if skipped:
+        print(f"\n⚠ Supported but SKIPPED (no OVERLAY entry — add example_url + note): "
+              f"{', '.join(skipped)}")
 
 
 if __name__ == "__main__":

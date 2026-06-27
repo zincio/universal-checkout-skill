@@ -1,0 +1,510 @@
+{
+  "retailers": [
+    {
+      "retailer": "1800flowers",
+      "display_name": "1-800 Flowers",
+      "is_supported": true,
+      "base_url": "1800flowers.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "1800flowers",
+          "country": "US",
+          "url": "1800flowers.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "acehardware",
+      "display_name": "Ace Hardware",
+      "is_supported": true,
+      "base_url": "acehardware.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "acehardware",
+          "country": "US",
+          "url": "acehardware.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "amazon",
+      "display_name": "Amazon US",
+      "is_supported": true,
+      "base_url": "amazon.com",
+      "supports_accounts": true,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "DE",
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "amazon",
+          "country": "US",
+          "url": "amazon.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": true,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "consumer",
+              "enabled": true
+            },
+            {
+              "name": "business",
+              "enabled": false
+            }
+          ]
+        },
+        {
+          "name": "amazon-de",
+          "country": "DE",
+          "url": "amazon.de",
+          "supports_guest_checkout": false,
+          "supports_accounts": true,
+          "zinc_managed": false,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "consumer",
+              "enabled": true
+            },
+            {
+              "name": "business",
+              "enabled": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "apple",
+      "display_name": null,
+      "is_supported": false,
+      "base_url": "apple.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "Apple",
+          "country": "US",
+          "url": "apple.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "bestbuy",
+      "display_name": "Best Buy",
+      "is_supported": true,
+      "base_url": "bestbuy.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "bestbuy",
+          "country": "US",
+          "url": "bestbuy.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "ebay",
+      "display_name": "eBay",
+      "is_supported": true,
+      "base_url": "ebay.com",
+      "supports_accounts": true,
+      "supports_guest_checkout": false,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "ebay",
+          "country": "US",
+          "url": "ebay.com",
+          "supports_guest_checkout": false,
+          "supports_accounts": true,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "homedepot",
+      "display_name": "Home Depot",
+      "is_supported": true,
+      "base_url": "homedepot.com",
+      "supports_accounts": true,
+      "supports_guest_checkout": false,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "homedepot",
+          "country": "US",
+          "url": "homedepot.com",
+          "supports_guest_checkout": false,
+          "supports_accounts": true,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "lowes",
+      "display_name": "Lowes",
+      "is_supported": true,
+      "base_url": "lowes.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "lowes",
+          "country": "US",
+          "url": "lowes.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "macys",
+      "display_name": "Macys",
+      "is_supported": false,
+      "base_url": "macys.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "macys",
+          "country": "US",
+          "url": "macys.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "pokemoncenter",
+      "display_name": "Pokemon Center",
+      "is_supported": true,
+      "base_url": "pokemoncenter.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "pokemoncenter",
+          "country": "US",
+          "url": "pokemoncenter.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "target",
+      "display_name": "Target",
+      "is_supported": true,
+      "base_url": "target.com",
+      "supports_accounts": true,
+      "supports_guest_checkout": false,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "target",
+          "country": "US",
+          "url": "target.com",
+          "supports_guest_checkout": false,
+          "supports_accounts": true,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "walgreens",
+      "display_name": "Walgreens",
+      "is_supported": false,
+      "base_url": "walgreens.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "walgreens",
+          "country": "US",
+          "url": "walgreens.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "walmart",
+      "display_name": "Walmart",
+      "is_supported": true,
+      "base_url": "walmart.com",
+      "supports_accounts": true,
+      "supports_guest_checkout": false,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "walmart",
+          "country": "US",
+          "url": "walmart.com",
+          "supports_guest_checkout": false,
+          "supports_accounts": true,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "wayfair",
+      "display_name": "Wayfair",
+      "is_supported": true,
+      "base_url": "wayfair.com",
+      "supports_accounts": true,
+      "supports_guest_checkout": false,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "wayfair",
+          "country": "US",
+          "url": "wayfair.com",
+          "supports_guest_checkout": false,
+          "supports_accounts": true,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "yamaha",
+      "display_name": "Yamaha US",
+      "is_supported": false,
+      "base_url": "yamaha.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "yamaha",
+          "country": "US",
+          "url": "yamaha.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "retailer": "zinc",
+      "display_name": "Zinc",
+      "is_supported": true,
+      "base_url": "zinc.com",
+      "supports_accounts": false,
+      "supports_guest_checkout": true,
+      "zinc_managed": true,
+      "supported_countries": [
+        "US"
+      ],
+      "storefronts": [
+        {
+          "name": "zinc",
+          "country": "US",
+          "url": "zinc.com",
+          "supports_guest_checkout": true,
+          "supports_accounts": false,
+          "zinc_managed": true,
+          "free_shipping": false,
+          "free_shipping_threshold_cents": null,
+          "catalogs": [
+            {
+              "name": "standard",
+              "enabled": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "total": 16
+}
