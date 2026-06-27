@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """Generate per-retailer Zinc checkout skills from one template.
 
-The retailer *catalog* (which retailers exist, display name, base URL,
-supported countries, free-shipping terms) is driven by the live public
-`GET https://api.zinc.com/retailers` endpoint — the single source of truth — so
-the skills stay in sync automatically. The endpoint deliberately does NOT carry
-three things the SKILL.md template needs, so those live in a small local OVERLAY
-keyed by slug:
-
-  * example_url — an illustrative product URL for code samples
-  * psearch     — whether /products/search + /products/{id}/offers cover it
-  * note        — editorial, retailer-specific guidance
+The retailer catalog is driven by the live public `GET https://api.zinc.com/retailers`
+endpoint — the single source of truth — so the skills stay in sync automatically.
+Everything retailer-specific that matters (name, domain, free-shipping terms)
+comes from there; the endpoint doesn't carry an example product URL (derived from
+the domain), which retailers have /products/search (one constant), or genuine
+order caveats (a sparse CONSTRAINTS map). Adding a retailer needs no code change.
 
 Usage:
 
@@ -18,8 +14,7 @@ Usage:
     python3 tools/generate_skills.py --refresh  # re-fetch /retailers, update snapshot, generate
 
 `--refresh` writes tools/retailers.json (committed) so builds are reproducible
-and catalog changes show up as a reviewable diff. A supported retailer with no
-OVERLAY entry is skipped and logged loudly (it needs an example_url + note).
+and catalog changes show up as a reviewable diff.
 
 Each retailer gets a self-contained skill folder (SKILL.md + references/errors.md),
 installable standalone via `npx skills add zincio/skills --skill <retailer>-checkout`.
@@ -38,40 +33,31 @@ SHARED_ERRORS = os.path.join(REPO_ROOT, "references", "errors.md")
 SNAPSHOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "retailers.json")
 RETAILERS_URL = "https://api.zinc.com/retailers"
 
-# --- Editorial overlay -----------------------------------------------------
-# Per-slug fields the /retailers endpoint does not provide. `display` is an
-# optional override for when the catalog's display_name isn't the polished brand
-# (e.g. "Lowes" -> "Lowe's"). `fs_fallback` = (free_shipping, threshold_cents)
-# used ONLY when the endpoint hasn't exposed free_shipping yet (pre-#622); once
-# the endpoint returns those fields, the endpoint wins and these are ignored.
-OVERLAY = {
-    "amazon": {"display": "Amazon", "psearch": True, "example_url": "https://www.amazon.com/dp/B09V3KXJPB",
-               "fs_fallback": (True, 3500),
-               "note": "Amazon is the most broadly supported retailer — pass any amazon.com product URL. To buy a cheaper used or refurbished copy, allow those conditions via `condition_in` (e.g. `[\"New\", \"UsedLikeNew\"]`)."},
-    "walmart": {"psearch": True, "example_url": "https://www.walmart.com/ip/Apple-AirPods-Pro-2/1872350654",
-                "fs_fallback": (True, 3500),
-                "note": "Walmart product URLs from walmart.com work directly, and product search + best-price offers are available for Walmart via the products endpoints."},
-    "target": {"psearch": False, "example_url": "https://www.target.com/p/-/A-81905346",
-               "fs_fallback": (True, 3500), "note": "Pass any target.com product URL."},
-    "bestbuy": {"psearch": False, "example_url": "https://www.bestbuy.com/site/apple-airpods-pro-2nd-generation/4900964.p",
-                "fs_fallback": (True, 3500), "note": "Pass any bestbuy.com product URL."},
-    "ebay": {"psearch": False, "example_url": "https://www.ebay.com/itm/256123456789",
-             "fs_fallback": (False, None),
-             "note": "eBay supports fixed-price (Buy It Now) listings — pass the ebay.com item URL. Auction listings aren't supported."},
-    "homedepot": {"display": "The Home Depot", "psearch": False, "example_url": "https://www.homedepot.com/p/313041081",
-                  "fs_fallback": (True, 4500), "note": "Pass any homedepot.com product URL."},
-    "lowes": {"display": "Lowe's", "psearch": False, "example_url": "https://www.lowes.com/pd/5013499741",
-              "fs_fallback": (True, 4500), "note": "Pass any lowes.com product URL."},
-    "wayfair": {"psearch": False, "example_url": "https://www.wayfair.com/furniture/pdp-w100123456.html",
-                "fs_fallback": (None, None), "note": "Pass any wayfair.com product URL."},
-    "1800flowers": {"display": "1-800-Flowers", "psearch": False, "example_url": "https://www.1800flowers.com/product-name-12345",
-                    "fs_fallback": (False, None),
-                    "note": "Great for automating gifting — set `is_gift: true` to keep prices off the packing slip, and use `metadata` to track a gift message if your workflow has one."},
-    "acehardware": {"display": "Ace Hardware", "psearch": False, "example_url": "https://www.acehardware.com/departments/tools/power-tools/drills/2012345",
-                    "fs_fallback": (False, None), "note": "Pass any acehardware.com product URL."},
-    "pokemoncenter": {"display": "Pokémon Center", "psearch": False, "example_url": "https://www.pokemoncenter.com/product/100-10-1234",
-                      "fs_fallback": (True, 2000),
-                      "note": "Inventory is often limited-drop — set a sensible `max_price` and expect `product_out_of_stock` on sold-out items."},
+# --- The little the catalog can't tell us ----------------------------------
+# /retailers is the source of truth for the catalog (which retailers exist,
+# display_name, base_url, free-shipping terms). Three things it intentionally
+# doesn't carry — handled here without a per-retailer overlay:
+#
+#   * example product URL  -> derived from base_url. Agents get real URLs from
+#     /search or the user; they never build them from patterns, so a placeholder
+#     that shows the request *schema* is all an example needs.
+#   * products-API coverage -> one capability constant (not 11 entries).
+#   * genuine order-affecting caveats -> a sparse map; most retailers need none.
+#
+# So adding a retailer is ZERO code: once it's `supported` in /retailers,
+# --refresh + regenerate produces a complete skill.
+
+# Internal / non-consumer catalog entries we don't publish a checkout skill for.
+EXCLUDE = {"zinc"}
+
+# Retailers where GET /products/search + /products/{id}/offers apply.
+PRODUCTS_API_RETAILERS = {"amazon", "walmart"}
+
+# Genuine, order-affecting constraints worth telling the agent. Keep sparse —
+# only add one when it changes whether/how an order succeeds.
+CONSTRAINTS = {
+    "ebay": "eBay supports fixed-price (Buy It Now) listings only — auction listings aren't supported.",
+    "pokemoncenter": "Inventory is often limited-drop; expect `product_out_of_stock` on sold-out items.",
 }
 
 
@@ -98,32 +84,24 @@ def is_supported(raw):
 
 
 def build_retailers(catalog):
-    """Merge the live catalog with the editorial OVERLAY. Returns (configs, skipped)."""
-    configs, skipped = [], []
+    """Turn the live catalog into render configs. No per-retailer overlay."""
+    configs = []
     for raw in catalog:
-        if not is_supported(raw):
-            continue
         slug = raw.get("retailer")
-        ov = OVERLAY.get(slug)
-        if not ov:
-            skipped.append(slug)
+        if not slug or slug in EXCLUDE or not is_supported(raw):
             continue
-        # free-shipping: endpoint wins when it exposes the field; else fallback.
-        if "free_shipping" in raw:
-            fs, th = raw.get("free_shipping"), raw.get("free_shipping_threshold_cents")
-        else:
-            fs, th = ov["fs_fallback"]
+        domain = raw.get("base_url") or slug
         configs.append({
             "slug": slug,
-            "display": ov.get("display") or raw.get("display_name") or slug,
-            "domain": raw.get("base_url") or slug,
-            "example_url": ov["example_url"],
-            "psearch": ov["psearch"],
-            "free_shipping": fs,
-            "ship_threshold_cents": th,
-            "note": ov["note"],
+            "display": raw.get("display_name") or slug,
+            "domain": domain,
+            "example_url": f"https://www.{domain}/<product-page>",
+            "psearch": slug in PRODUCTS_API_RETAILERS,
+            "free_shipping": raw.get("free_shipping"),  # None until /retailers exposes it
+            "ship_threshold_cents": raw.get("free_shipping_threshold_cents"),
+            "constraint": CONSTRAINTS.get(slug),
         })
-    return configs, skipped
+    return configs
 
 # --- Template --------------------------------------------------------------
 # Tokens: {{DISPLAY}} {{SLUG}} {{DOMAIN}} {{EXAMPLE_URL}}
@@ -210,7 +188,7 @@ Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instea
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping when the order is below {{DISPLAY}}'s free-shipping threshold (see Retailer notes).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for {{DISPLAY}}'s free-shipping terms).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -349,13 +327,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Validate that `max_price` is reasonable before submitting.
 - MPP orders charge the agent's crypto wallet — ensure sufficient balance before placing.
 
-## Retailer notes
-
-{{RETAILER_NOTE}}
-
-{{SHIPPING_NOTE}}
-
-## Support
+{{NOTES_SECTION}}## Support
 
 - Email: support@zinc.com
 - Book a call with our CEO: https://cal.com/zinc-ian/15min
@@ -368,27 +340,34 @@ For richer {{DISPLAY}} results and best-price comparison, use `GET /products/sea
 
 
 def shipping_note(r):
-    """Free-shipping line for the Retailer notes section, from /retailers fields."""
+    """Free-shipping line, from /retailers fields. Empty when the endpoint hasn't
+    exposed free-shipping yet — we don't guess."""
     fs = r.get("free_shipping")
     th = r.get("ship_threshold_cents")
     if fs is None:
-        return ("**Shipping:** check `GET /retailers` for {{DISPLAY}}'s current "
-                "free-shipping terms, and include any shipping cost in `max_price`.")
+        return ""
     if fs is False:
         return ("**Shipping:** {{DISPLAY}} has no flat free-shipping threshold — "
                 "shipping is added per order, so leave room for it in `max_price`.")
     if th == 0:
         return "**Shipping:** {{DISPLAY}} ships free on all orders."
-    return (f"**Shipping:** {{{{DISPLAY}}}} ships free on orders over ${th // 100}. "
-            "For cheaper items, shipping is added to the order total, so leave room "
-            "for it in `max_price`. (Live terms: `GET /retailers`.)")
+    return (f"**Shipping:** {{{{DISPLAY}}}} ships free on orders over ${th // 100}; "
+            "below that, shipping is added to the total — leave room in `max_price`.")
+
+
+def notes_section(r):
+    """The optional '## Retailer notes' block — only rendered if there's anything
+    real to say (a genuine constraint and/or known free-shipping terms)."""
+    parts = [p for p in (r.get("constraint"), shipping_note(r)) if p]
+    if not parts:
+        return ""
+    return "## Retailer notes\n\n" + "\n\n".join(parts) + "\n\n"
 
 
 def render(retailer):
     out = FRONTMATTER + BODY
     out = out.replace("{{PRODUCT_SEARCH}}", PRODUCT_SEARCH_BLOCK if retailer["psearch"] else "")
-    out = out.replace("{{RETAILER_NOTE}}", retailer.get("note", ""))
-    out = out.replace("{{SHIPPING_NOTE}}", shipping_note(retailer))
+    out = out.replace("{{NOTES_SECTION}}", notes_section(retailer))
     # token substitution last so it reaches injected blocks too
     out = out.replace("{{DISPLAY}}", retailer["display"])
     out = out.replace("{{SLUG}}", retailer["slug"])
@@ -405,7 +384,7 @@ SHARED_ERRORS_ONLY = ["universal-checkout"]
 def main():
     refresh = "--refresh" in sys.argv[1:]
     catalog = load_catalog(refresh)
-    retailers, skipped = build_retailers(catalog)
+    retailers = build_retailers(catalog)
 
     written = []
     for r in retailers:
@@ -427,9 +406,6 @@ def main():
     for w in written:
         print(f"  skills/{w}/")
     print(f"Refreshed errors.md for: {', '.join(SHARED_ERRORS_ONLY)}")
-    if skipped:
-        print(f"\n⚠ Supported but SKIPPED (no OVERLAY entry — add example_url + note): "
-              f"{', '.join(skipped)}")
 
 
 if __name__ == "__main__":

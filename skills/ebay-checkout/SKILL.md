@@ -77,7 +77,7 @@ Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instea
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping when the order is below eBay's free-shipping threshold (see Retailer notes).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for eBay's free-shipping terms).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -88,7 +88,7 @@ curl -X POST https://api.zinc.com/orders \
   -H "Authorization: Bearer $ZINC_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "products": [{ "url": "https://www.ebay.com/itm/256123456789", "quantity": 1, "condition_in": ["New"] }],
+    "products": [{ "url": "https://www.ebay.com/<product-page>", "quantity": 1, "condition_in": ["New"] }],
     "max_price": 5000,
     "handling_days_max": 5,
     "shipping_address": {
@@ -120,7 +120,7 @@ async with Client(methods=[method]) as client:
     response = await client.post(
         "https://api.zinc.com/agent/orders",
         json={
-            "products": [{"url": "https://www.ebay.com/itm/256123456789", "quantity": 1}],
+            "products": [{"url": "https://www.ebay.com/<product-page>", "quantity": 1}],
             "max_price": 5000,
             "shipping_address": {
                 "first_name": "Jane", "last_name": "Doe",
@@ -218,9 +218,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 
 ## Retailer notes
 
-eBay supports fixed-price (Buy It Now) listings — pass the ebay.com item URL. Auction listings aren't supported.
-
-**Shipping:** eBay has no flat free-shipping threshold — shipping is added per order, so leave room for it in `max_price`.
+eBay supports fixed-price (Buy It Now) listings only — auction listings aren't supported.
 
 ## Support
 

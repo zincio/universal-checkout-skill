@@ -79,7 +79,7 @@ For richer Walmart results and best-price comparison, use `GET /products/search?
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping when the order is below Walmart's free-shipping threshold (see Retailer notes).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for Walmart's free-shipping terms).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -90,7 +90,7 @@ curl -X POST https://api.zinc.com/orders \
   -H "Authorization: Bearer $ZINC_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "products": [{ "url": "https://www.walmart.com/ip/Apple-AirPods-Pro-2/1872350654", "quantity": 1, "condition_in": ["New"] }],
+    "products": [{ "url": "https://www.walmart.com/<product-page>", "quantity": 1, "condition_in": ["New"] }],
     "max_price": 5000,
     "handling_days_max": 5,
     "shipping_address": {
@@ -122,7 +122,7 @@ async with Client(methods=[method]) as client:
     response = await client.post(
         "https://api.zinc.com/agent/orders",
         json={
-            "products": [{"url": "https://www.walmart.com/ip/Apple-AirPods-Pro-2/1872350654", "quantity": 1}],
+            "products": [{"url": "https://www.walmart.com/<product-page>", "quantity": 1}],
             "max_price": 5000,
             "shipping_address": {
                 "first_name": "Jane", "last_name": "Doe",
@@ -217,12 +217,6 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
 - Validate that `max_price` is reasonable before submitting.
 - MPP orders charge the agent's crypto wallet — ensure sufficient balance before placing.
-
-## Retailer notes
-
-Walmart product URLs from walmart.com work directly, and product search + best-price offers are available for Walmart via the products endpoints.
-
-**Shipping:** Walmart ships free on orders over $35. For cheaper items, shipping is added to the order total, so leave room for it in `max_price`. (Live terms: `GET /retailers`.)
 
 ## Support
 

@@ -1,13 +1,13 @@
 ---
 name: lowes-checkout
-description: Buy products from Lowe's (lowes.com) and manage those orders via the Zinc API (zinc.com). Use when the user wants to purchase, order, or check out an item from Lowe's, check Lowe's order status or tracking, cancel a Lowe's order, or return a Lowe's item. One API also covers Amazon, Walmart, Target, Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for paying with crypto on-chain.
+description: Buy products from Lowes (lowes.com) and manage those orders via the Zinc API (zinc.com). Use when the user wants to purchase, order, or check out an item from Lowes, check Lowes order status or tracking, cancel a Lowes order, or return a Lowes item. One API also covers Amazon, Walmart, Target, Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for paying with crypto on-chain.
 ---
 
-# Lowe's Checkout
+# Lowes Checkout
 
-Buy, track, and return products from Lowe's (lowes.com) through the Zinc API (`https://api.zinc.com`). US orders.
+Buy, track, and return products from Lowes (lowes.com) through the Zinc API (`https://api.zinc.com`). US orders.
 
-> **Powered by Zinc Universal Checkout.** The same API buys from Lowe's and 50+ other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
+> **Powered by Zinc Universal Checkout.** The same API buys from Lowes and 50+ other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
 
 ## Quick Start
 
@@ -40,14 +40,14 @@ The `pympp` `Client` handles steps 1-3 automatically. You just make one `client.
 
 ## Find a product (optional)
 
-If the user already has a Lowe's product URL, skip to **Place an order**. Otherwise search for one:
+If the user already has a Lowes product URL, skip to **Place an order**. Otherwise search for one:
 
 ```bash
 curl "https://api.zinc.com/search?q=cast+iron+skillet" \
   -H "Authorization: Bearer $ZINC_API_KEY"
 ```
 
-`GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "lowes"` for Lowe's-only, then pass the `url` into an order.
+`GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "lowes"` for Lowes-only, then pass the `url` into an order.
 
 Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the `pympp` `Client` handles the 402 → pay → retry automatically. `GET /retailers` is free.
 
@@ -63,7 +63,7 @@ Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instea
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `url` | string | ✓ | Direct Lowe's product page URL (on lowes.com) |
+| `url` | string | ✓ | Direct Lowes product page URL (on lowes.com) |
 | `quantity` | integer 1–100 | — | Units to buy (default 1) |
 | `variant` | array of `{ label, value }` | — | Options, e.g. `[{ "label": "Size", "value": "Large" }]` |
 | `condition_in` | array | — | Allowlist of acceptable conditions |
@@ -77,7 +77,7 @@ Paying with crypto (MPP, no account)? Use the metered `GET /agent/search` instea
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping when the order is below Lowe's's free-shipping threshold (see Retailer notes).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for Lowes's free-shipping terms).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -88,7 +88,7 @@ curl -X POST https://api.zinc.com/orders \
   -H "Authorization: Bearer $ZINC_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "products": [{ "url": "https://www.lowes.com/pd/5013499741", "quantity": 1, "condition_in": ["New"] }],
+    "products": [{ "url": "https://www.lowes.com/<product-page>", "quantity": 1, "condition_in": ["New"] }],
     "max_price": 5000,
     "handling_days_max": 5,
     "shipping_address": {
@@ -120,7 +120,7 @@ async with Client(methods=[method]) as client:
     response = await client.post(
         "https://api.zinc.com/agent/orders",
         json={
-            "products": [{"url": "https://www.lowes.com/pd/5013499741", "quantity": 1}],
+            "products": [{"url": "https://www.lowes.com/<product-page>", "quantity": 1}],
             "max_price": 5000,
             "shipping_address": {
                 "first_name": "Jane", "last_name": "Doe",
@@ -215,12 +215,6 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
 - Validate that `max_price` is reasonable before submitting.
 - MPP orders charge the agent's crypto wallet — ensure sufficient balance before placing.
-
-## Retailer notes
-
-Pass any lowes.com product URL.
-
-**Shipping:** Lowe's ships free on orders over $45. For cheaper items, shipping is added to the order total, so leave room for it in `max_price`. (Live terms: `GET /retailers`.)
 
 ## Support
 
