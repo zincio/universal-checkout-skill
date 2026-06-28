@@ -10,14 +10,14 @@ This repo ships the **`universal-checkout`** skill (every retailer, full order l
 | Skill | Buys from | Install |
 |-------|-----------|---------|
 | [`universal-checkout`](skills/universal-checkout/SKILL.md) | **Universal** — all supported retailers | `npx skills add zincio/skills --skill universal-checkout` |
-| [`1800flowers-checkout`](skills/1800flowers-checkout/SKILL.md) | 1-800 Flowers | `npx skills add zincio/skills --skill 1800flowers-checkout` |
+| [`1800flowers-checkout`](skills/1800flowers-checkout/SKILL.md) | 1-800-Flowers | `npx skills add zincio/skills --skill 1800flowers-checkout` |
 | [`acehardware-checkout`](skills/acehardware-checkout/SKILL.md) | Ace Hardware | `npx skills add zincio/skills --skill acehardware-checkout` |
-| [`amazon-checkout`](skills/amazon-checkout/SKILL.md) | Amazon US | `npx skills add zincio/skills --skill amazon-checkout` |
+| [`amazon-checkout`](skills/amazon-checkout/SKILL.md) | Amazon | `npx skills add zincio/skills --skill amazon-checkout` |
 | [`bestbuy-checkout`](skills/bestbuy-checkout/SKILL.md) | Best Buy | `npx skills add zincio/skills --skill bestbuy-checkout` |
 | [`ebay-checkout`](skills/ebay-checkout/SKILL.md) | eBay | `npx skills add zincio/skills --skill ebay-checkout` |
-| [`homedepot-checkout`](skills/homedepot-checkout/SKILL.md) | Home Depot | `npx skills add zincio/skills --skill homedepot-checkout` |
-| [`lowes-checkout`](skills/lowes-checkout/SKILL.md) | Lowes | `npx skills add zincio/skills --skill lowes-checkout` |
-| [`pokemoncenter-checkout`](skills/pokemoncenter-checkout/SKILL.md) | Pokemon Center | `npx skills add zincio/skills --skill pokemoncenter-checkout` |
+| [`homedepot-checkout`](skills/homedepot-checkout/SKILL.md) | The Home Depot | `npx skills add zincio/skills --skill homedepot-checkout` |
+| [`lowes-checkout`](skills/lowes-checkout/SKILL.md) | Lowe's | `npx skills add zincio/skills --skill lowes-checkout` |
+| [`pokemoncenter-checkout`](skills/pokemoncenter-checkout/SKILL.md) | Pokémon Center | `npx skills add zincio/skills --skill pokemoncenter-checkout` |
 | [`target-checkout`](skills/target-checkout/SKILL.md) | Target | `npx skills add zincio/skills --skill target-checkout` |
 | [`walmart-checkout`](skills/walmart-checkout/SKILL.md) | Walmart | `npx skills add zincio/skills --skill walmart-checkout` |
 | [`wayfair-checkout`](skills/wayfair-checkout/SKILL.md) | Wayfair | `npx skills add zincio/skills --skill wayfair-checkout` |

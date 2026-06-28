@@ -215,6 +215,10 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Set `max_price` to cover the **full** cost — item price **+ tax + shipping/handling** — not just the item. It's the total ceiling Zinc won't exceed, so too-low a value trips `max_price_exceeded`.
 - MPP orders authorize `max_price + $1` on the agent's payment method (Stripe card/wallet or Tempo wallet) — ensure sufficient balance/credit before placing.
 
+## Retailer notes
+
+**Shipping:** Ace Hardware has no flat free-shipping threshold — shipping is added per order, so leave room for it in `max_price`.
+
 ## Support
 
 - Email: support@zinc.com

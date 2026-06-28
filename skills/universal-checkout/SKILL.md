@@ -117,7 +117,7 @@ Best-price comparison and richer product data, on either rail. **Limited retaile
 There is no shipping-*method* picker; control cost and speed with these:
 
 - **Price ceiling:** `max_price` — Zinc won't finalize above it (`max_price_exceeded` otherwise). It's the **total** ceiling: item + shipping + tax.
-- **Budget for shipping:** below a retailer's free-shipping threshold, shipping is added to the total — leave room in `max_price`. Each retailer's `free_shipping` / `free_shipping_threshold_cents` is in `GET /retailers` (e.g. Amazon/Walmart/Target/Best Buy free over $35, Home Depot/Lowe's over $45).
+- **Budget for shipping:** below a retailer's free-shipping threshold, shipping is added to the total — leave room in `max_price`. Each retailer's `free_shipping` / `free_shipping_threshold_cents` is in `GET /retailers` — read it there per retailer rather than assuming a flat number.
 - **Best/cheapest price:** allow used or refurbished via `condition_in` (e.g. `["New", "UsedLikeNew"]`) so the bot can take a cheaper qualifying offer; use the **offers** endpoint above to compare first.
 - **Shipping speed:** `handling_days_max` caps seller handling time.
 

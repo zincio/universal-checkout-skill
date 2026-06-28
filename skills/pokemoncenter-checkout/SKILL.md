@@ -1,13 +1,13 @@
 ---
 name: pokemoncenter-checkout
-description: Buy products from Pokemon Center (pokemoncenter.com) and manage those orders via the Zinc API (zinc.com). Use when the user wants to purchase, order, or check out an item from Pokemon Center, check Pokemon Center order status or tracking, cancel a Pokemon Center order, or return a Pokemon Center item. One API also covers Amazon, Walmart, Target, Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for per-request payments via Stripe cards/wallets or Tempo stablecoins.
+description: Buy products from Pokémon Center (pokemoncenter.com) and manage those orders via the Zinc API (zinc.com). Use when the user wants to purchase, order, or check out an item from Pokémon Center, check Pokémon Center order status or tracking, cancel a Pokémon Center order, or return a Pokémon Center item. One API also covers Amazon, Walmart, Target, Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for per-request payments via Stripe cards/wallets or Tempo stablecoins.
 ---
 
-# Pokemon Center Checkout
+# Pokémon Center Checkout
 
-Buy, track, and return products from Pokemon Center (pokemoncenter.com) through the Zinc API (`https://api.zinc.com`). US orders.
+Buy, track, and return products from Pokémon Center (pokemoncenter.com) through the Zinc API (`https://api.zinc.com`). US orders.
 
-> **Powered by Zinc Universal Checkout.** The same API buys from Pokemon Center and 50+ other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
+> **Powered by Zinc Universal Checkout.** The same API buys from Pokémon Center and 50+ other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
 
 ## Quick Start
 
@@ -39,14 +39,14 @@ MPP is an open standard for HTTP 402 machine-to-machine payments (spec: <https:/
 
 ## Find a product (optional)
 
-If the user already has a Pokemon Center product URL, skip to **Place an order**. Otherwise search for one:
+If the user already has a Pokémon Center product URL, skip to **Place an order**. Otherwise search for one:
 
 ```bash
 curl "https://api.zinc.com/search?q=cast+iron+skillet" \
   -H "Authorization: Bearer $ZINC_API_KEY"
 ```
 
-`GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "pokemoncenter"` for Pokemon Center-only, then pass the `url` into an order.
+`GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "pokemoncenter"` for Pokémon Center-only, then pass the `url` into an order.
 
 Paying via MPP (Stripe or Tempo, no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.
 
@@ -62,7 +62,7 @@ Paying via MPP (Stripe or Tempo, no account)? Use the metered `GET /agent/search
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `url` | string | ✓ | Direct Pokemon Center product page URL (on pokemoncenter.com) |
+| `url` | string | ✓ | Direct Pokémon Center product page URL (on pokemoncenter.com) |
 | `quantity` | integer 1–100 | — | Units to buy (default 1) |
 | `variant` | array of `{ label, value }` | — | Options, e.g. `[{ "label": "Size", "value": "Large" }]` |
 | `condition_in` | array | — | Allowlist of acceptable conditions |
@@ -76,7 +76,7 @@ Paying via MPP (Stripe or Tempo, no account)? Use the metered `GET /agent/search
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for Pokemon Center's free-shipping terms).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for Pokémon Center's free-shipping terms).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -214,6 +214,10 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
 - Set `max_price` to cover the **full** cost — item price **+ tax + shipping/handling** — not just the item. It's the total ceiling Zinc won't exceed, so too-low a value trips `max_price_exceeded`.
 - MPP orders authorize `max_price + $1` on the agent's payment method (Stripe card/wallet or Tempo wallet) — ensure sufficient balance/credit before placing.
+
+## Retailer notes
+
+**Shipping:** Pokémon Center ships free on orders over $20; below that, shipping is added to the total — leave room in `max_price`.
 
 ## Support
 

@@ -77,6 +77,21 @@ def is_supported(raw):
     return raw.get("supported", raw.get("is_supported", False))
 
 
+def free_shipping_terms(raw):
+    """Return (free_shipping, threshold_cents) handling both catalog shapes.
+
+    The #622 flat shape carries these at the top level. The current prod shape
+    nests them per-country under `storefronts[]` — we're US-only, so read the US
+    storefront (falling back to the first one). Returns (None, None) when the
+    catalog doesn't expose free-shipping at all — we don't guess."""
+    if "free_shipping" in raw:  # flat #622 shape
+        return raw.get("free_shipping"), raw.get("free_shipping_threshold_cents")
+    storefronts = raw.get("storefronts") or []
+    us = next((s for s in storefronts if s.get("country") == "US"), None)
+    sf = us or (storefronts[0] if storefronts else {})
+    return sf.get("free_shipping"), sf.get("free_shipping_threshold_cents")
+
+
 def build_retailers(catalog):
     """Turn the live catalog into render configs. No per-retailer overlay."""
     configs = []
@@ -85,14 +100,15 @@ def build_retailers(catalog):
         if not slug or slug in EXCLUDE or not is_supported(raw):
             continue
         domain = raw.get("base_url") or slug
+        fs, threshold = free_shipping_terms(raw)
         configs.append({
             "slug": slug,
             "display": raw.get("display_name") or slug,
             "domain": domain,
             "example_url": f"https://www.{domain}/<product-page>",
             "psearch": slug in PRODUCTS_API_RETAILERS,
-            "free_shipping": raw.get("free_shipping"),  # None until /retailers exposes it
-            "ship_threshold_cents": raw.get("free_shipping_threshold_cents"),
+            "free_shipping": fs,  # None when the catalog doesn't expose it
+            "ship_threshold_cents": threshold,
         })
     return configs
 
@@ -331,6 +347,11 @@ PRODUCT_SEARCH_BLOCK = """
 {{DISPLAY}} is one of the few retailers with richer product data (currently Amazon & Walmart only). For best-price comparison, use `GET /products/search?query=<term>&retailer={{SLUG}}` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer={{SLUG}}` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer={{SLUG}}`), $0.01 per call."""
 
 
+def _dollars(cents):
+    """cents -> '$45' for whole dollars, '$45.99' when there are cents."""
+    return f"${cents // 100}" if cents % 100 == 0 else f"${cents / 100:.2f}"
+
+
 def shipping_note(r):
     """Free-shipping line, from /retailers fields. Empty when the endpoint hasn't
     exposed free-shipping yet — we don't guess."""
@@ -343,7 +364,12 @@ def shipping_note(r):
                 "shipping is added per order, so leave room for it in `max_price`.")
     if th == 0:
         return "**Shipping:** {{DISPLAY}} ships free on all orders."
-    return (f"**Shipping:** {{{{DISPLAY}}}} ships free on orders over ${th // 100}; "
+    if th is None:
+        # Free shipping offered but the catalog gives no threshold — state the
+        # fact without inventing a number.
+        return ("**Shipping:** {{DISPLAY}} offers free shipping on qualifying orders; "
+                "below the threshold shipping is added — leave room in `max_price`.")
+    return (f"**Shipping:** {{{{DISPLAY}}}} ships free on orders over {_dollars(th)}; "
             "below that, shipping is added to the total — leave room in `max_price`.")
 
 
@@ -395,6 +421,14 @@ def update_readme_table(retailers):
     block = TABLE_START + "\n" + "\n".join(rows) + "\n" + TABLE_END
     with open(README) as f:
         text = f.read()
+    # Guard against a mangled README: the markers must each appear exactly once,
+    # in order. Otherwise partition() would silently drop content or duplicate
+    # the table — fail loudly instead of corrupting the file.
+    if text.count(TABLE_START) != 1 or text.count(TABLE_END) != 1:
+        sys.exit(
+            f"README.md must contain exactly one {TABLE_START!r} and one "
+            f"{TABLE_END!r} (found {text.count(TABLE_START)} / {text.count(TABLE_END)})."
+        )
     pre, _, rest = text.partition(TABLE_START)
     _, _, post = rest.partition(TABLE_END)
     with open(README, "w") as f:
@@ -422,12 +456,25 @@ def main():
         os.makedirs(refs, exist_ok=True)
         shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
 
+    # Prune stale generated skills: a retailer dropped or renamed in the catalog
+    # leaves a `<slug>-checkout/` folder that would still be installable. Only
+    # `*-checkout` folders are touched; hand-maintained skills are kept.
+    keep = set(written) | set(SHARED_ERRORS_ONLY)
+    removed = []
+    for entry in sorted(os.listdir(SKILLS_DIR)) if os.path.isdir(SKILLS_DIR) else []:
+        path = os.path.join(SKILLS_DIR, entry)
+        if os.path.isdir(path) and entry.endswith("-checkout") and entry not in keep:
+            shutil.rmtree(path)
+            removed.append(entry)
+
     update_readme_table(retailers)
 
     print(f"Generated {len(written)} retailer skills from {len(catalog)} cataloged retailers:")
     for w in written:
         print(f"  skills/{w}/")
     print(f"Refreshed errors.md for: {', '.join(SHARED_ERRORS_ONLY)}")
+    if removed:
+        print(f"Pruned {len(removed)} stale skill(s): {', '.join(removed)}")
     print("Updated README skills table.")
 
 

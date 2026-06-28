@@ -19,8 +19,10 @@
 ## Error Response Format
 
 ```json
-{ "code": "error_code", "message": "Human-readable message", "details": { "field": "context" } }
+{ "error": { "code": "error_code", "message": "Human-readable message", "details": { "field": "context" } } }
 ```
+
+The error object is nested under `error` — read `body.error.code`, not `body.code`. `details` is `null` when there's no field-level context.
 
 ## API Error Codes
 
