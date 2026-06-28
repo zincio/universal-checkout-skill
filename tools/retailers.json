@@ -1,0 +1,182 @@
+{
+  "retailers": [
+    {
+      "retailer": "1800flowers",
+      "display_name": "1-800-Flowers",
+      "supported": true,
+      "base_url": "1800flowers.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": false,
+      "free_shipping_threshold_cents": null
+    },
+    {
+      "retailer": "acehardware",
+      "display_name": "Ace Hardware",
+      "supported": true,
+      "base_url": "acehardware.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": false,
+      "free_shipping_threshold_cents": null
+    },
+    {
+      "retailer": "amazon",
+      "display_name": "Amazon",
+      "supported": true,
+      "base_url": "amazon.com",
+      "supported_countries": [
+        "DE",
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 3500
+    },
+    {
+      "retailer": "apple",
+      "display_name": "Apple",
+      "supported": false,
+      "base_url": "apple.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 0
+    },
+    {
+      "retailer": "bestbuy",
+      "display_name": "Best Buy",
+      "supported": true,
+      "base_url": "bestbuy.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 3500
+    },
+    {
+      "retailer": "ebay",
+      "display_name": "eBay",
+      "supported": true,
+      "base_url": "ebay.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": false,
+      "free_shipping_threshold_cents": null
+    },
+    {
+      "retailer": "homedepot",
+      "display_name": "The Home Depot",
+      "supported": true,
+      "base_url": "homedepot.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 4500
+    },
+    {
+      "retailer": "lowes",
+      "display_name": "Lowe's",
+      "supported": true,
+      "base_url": "lowes.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 4500
+    },
+    {
+      "retailer": "macys",
+      "display_name": "Macys",
+      "supported": false,
+      "base_url": "macys.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 4900
+    },
+    {
+      "retailer": "pokemoncenter",
+      "display_name": "Pokémon Center",
+      "supported": true,
+      "base_url": "pokemoncenter.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 2000
+    },
+    {
+      "retailer": "target",
+      "display_name": "Target",
+      "supported": true,
+      "base_url": "target.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 3500
+    },
+    {
+      "retailer": "walgreens",
+      "display_name": "Walgreens",
+      "supported": false,
+      "base_url": "walgreens.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 3500
+    },
+    {
+      "retailer": "walmart",
+      "display_name": "Walmart",
+      "supported": true,
+      "base_url": "walmart.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 3500
+    },
+    {
+      "retailer": "wayfair",
+      "display_name": "Wayfair",
+      "supported": true,
+      "base_url": "wayfair.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 3500
+    },
+    {
+      "retailer": "yamaha",
+      "display_name": "Yamaha US",
+      "supported": false,
+      "base_url": "yamaha.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": true,
+      "free_shipping_threshold_cents": 0
+    },
+    {
+      "retailer": "zinc",
+      "display_name": "Zinc",
+      "supported": true,
+      "base_url": "zinc.com",
+      "supported_countries": [
+        "US"
+      ],
+      "free_shipping": false,
+      "free_shipping_threshold_cents": null
+    }
+  ],
+  "total": 16
+}
