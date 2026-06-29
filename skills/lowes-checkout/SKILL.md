@@ -15,7 +15,7 @@ Buy, track, and return products from Lowe's (lowes.com) through the Zinc API (`h
 
 - **`ZINC_API_KEY` env var is set** → Use `POST /orders` with Bearer token auth. This is the standard flow for pre-registered users.
 - **MPP — no account needed** → Use the `/agent/*` endpoints; pay per request via **Tempo stablecoins** (`TEMPO_PRIVATE_KEY`, on-chain) or **Stripe** (cards/wallets via Stripe Link). `POST /agent/orders` to buy; `/agent/search` to discover ($0.01 per data call). `GET /retailers` is free.
-- **Neither is set** → Ask the user to either sign up at <https://app.zinc.com> for an API key, or set up an MPP payment method (Tempo wallet or Stripe). Try it without code at <https://agent.zinc.com>.
+- **Neither is set** → Ask the user to either sign up at [app.zinc.com](https://app.zinc.com) for an API key, or set up an MPP payment method (Tempo wallet or Stripe). Try it without code at [agent.zinc.com](https://agent.zinc.com).
 
 All amounts are in **US cents** (e.g. `5000` = $50.00).
 
@@ -29,7 +29,7 @@ Authorization: Bearer $ZINC_API_KEY
 
 ### MPP Auth (Machine Payments Protocol)
 
-MPP is an open standard for HTTP 402 machine-to-machine payments (spec: <https://mpp.dev>) — no API key needed upfront:
+MPP is an open standard for HTTP 402 machine-to-machine payments (spec: [mpp.dev](https://mpp.dev)) — no API key needed upfront:
 
 1. Send the request (e.g. `POST /agent/orders`) with no `Authorization` header → receive HTTP `402 Payment Required` with one `WWW-Authenticate: Payment …` header per supported payment method
 2. The MPP client picks a method, completes payment, and retries with `Authorization: Payment <credential>` → success
@@ -134,7 +134,7 @@ async with Client(methods=[method]) as client:
     api_key = response.headers["X-Api-Key"]  # use for GET /orders/{id}
 ```
 
-For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`. TypeScript is equivalent via `mppx`. To use Stripe directly (Shared Payment Tokens), see <https://docs.zinc.com/v2/mpp#using-stripe-with-mpp>.
+For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`. TypeScript is equivalent via `mppx`. To use Stripe directly (Shared Payment Tokens), see [the Stripe-with-MPP guide](https://docs.zinc.com/v2/mpp#using-stripe-with-mpp).
 
 ## Track & manage orders
 
