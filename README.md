@@ -27,6 +27,15 @@ This repo ships the **`universal-checkout`** skill (every retailer, full order l
 >
 > Live supported-retailer list: `GET https://api.zinc.com/retailers`.
 
+## Task skills
+
+Hand-maintained skills for a specific *task* rather than a retailer. Unlike the checkout skills above, these talk to a purpose-built app (not the Zinc API directly) and pay per order via hosted checkout — no API key needed.
+
+| Skill | Task | Install |
+|-------|------|---------|
+| [`send-donuts`](skills/send-donuts/SKILL.md) | Send Krispy Kreme donuts to anyone by mail, paid by card via a hosted Stripe link | `npx skills add zincio/skills --skill send-donuts` |
+| [`send-doughnuts`](skills/send-doughnuts/SKILL.md) | Alias of `send-donuts` (identical instructions, alternate spelling) | `npx skills add zincio/skills --skill send-doughnuts` |
+
 ## What these skills do
 
 Full US shopping lifecycle — discover → buy → track → return:
