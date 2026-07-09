@@ -27,6 +27,15 @@ This repo ships the **`universal-checkout`** skill (every retailer, full order l
 >
 > Live supported-retailer list: `GET https://api.zinc.com/retailers`.
 
+## Task skills
+
+Hand-maintained skills for a specific *task* rather than a retailer. They place orders through the Zinc API and pay per order with a Stripe Link card via the [`create-payment-credential`](https://skills.sh/stripe/link-cli) skill — no Zinc API key needed.
+
+| Skill | Task | Install |
+|-------|------|---------|
+| [`send-donuts`](skills/send-donuts/SKILL.md) | Send Krispy Kreme donuts to anyone by mail, paid with your Stripe Link card | `npx skills add zincio/skills --skill send-donuts` |
+| [`send-doughnuts`](skills/send-doughnuts/SKILL.md) | Alias of `send-donuts` (identical instructions, alternate spelling) | `npx skills add zincio/skills --skill send-doughnuts` |
+
 ## What these skills do
 
 Full US shopping lifecycle — discover → buy → track → return:
