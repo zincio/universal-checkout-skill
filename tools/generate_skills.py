@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate per-retailer Zinc checkout skills from one template.
+"""Generate the Zinc checkout skills from one template.
 
 The retailer catalog is driven by the live public `GET https://api.zinc.com/retailers`
 endpoint — the single source of truth — so the skills stay in sync automatically.
@@ -9,6 +9,10 @@ comes from there; the only things not in the endpoint are an example product URL
 constant). Retailer-specific order constraints are NOT hardcoded — the order API
 reports them at request time. Adding a retailer needs no code change.
 
+`universal-checkout` is generated from this same template (a `universal` config),
+so the shared sections — crucially the Auth/MPP/payment mechanics — can never
+drift between the universal skill and the per-retailer skills.
+
 Usage:
 
     python3 tools/generate_skills.py            # generate from the committed snapshot
@@ -17,8 +21,8 @@ Usage:
 `--refresh` writes tools/retailers.json (committed) so builds are reproducible
 and catalog changes show up as a reviewable diff.
 
-Each retailer gets a self-contained skill folder (SKILL.md + references/errors.md),
-installable standalone via `npx skills add zincio/skills --skill <retailer>-checkout`.
+Each skill is a self-contained folder (SKILL.md + references/errors.md),
+installable via `npx skills add zincio/skills --skill <name>`.
 Scope: US retailers, full lifecycle (discover -> buy -> track -> return).
 """
 
@@ -33,20 +37,6 @@ SKILLS_DIR = os.path.join(REPO_ROOT, "skills")
 SHARED_ERRORS = os.path.join(REPO_ROOT, "references", "errors.md")
 SNAPSHOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "retailers.json")
 RETAILERS_URL = "https://api.zinc.com/retailers"
-
-# --- The little the catalog can't tell us ----------------------------------
-# /retailers is the source of truth for the catalog (which retailers exist,
-# display_name, base_url, free-shipping terms). Only two things it doesn't carry
-# are handled here, and neither is a per-retailer overlay:
-#
-#   * example product URL  -> derived from base_url. Agents get real URLs from
-#     /search or the user; they never build them from patterns, so a placeholder
-#     that shows the request *schema* is all an example needs.
-#   * products-API coverage -> one capability constant (not 11 entries).
-#
-# Retailer-specific order constraints are deliberately NOT encoded here — the
-# order API reports them at request time. So adding a retailer is ZERO code:
-# once it's `supported` in /retailers, --refresh + regenerate produces a skill.
 
 # Internal / non-consumer catalog entries we don't publish a checkout skill for.
 EXCLUDE = {"zinc"}
@@ -78,12 +68,7 @@ def is_supported(raw):
 
 
 def free_shipping_terms(raw):
-    """Return (free_shipping, threshold_cents) handling both catalog shapes.
-
-    The #622 flat shape carries these at the top level. The current prod shape
-    nests them per-country under `storefronts[]` — we're US-only, so read the US
-    storefront (falling back to the first one). Returns (None, None) when the
-    catalog doesn't expose free-shipping at all — we don't guess."""
+    """Return (free_shipping, threshold_cents) handling both catalog shapes."""
     if "free_shipping" in raw:  # flat #622 shape
         return raw.get("free_shipping"), raw.get("free_shipping_threshold_cents")
     storefronts = raw.get("storefronts") or []
@@ -109,33 +94,50 @@ def build_retailers(catalog):
             "psearch": slug in PRODUCTS_API_RETAILERS,
             "free_shipping": fs,  # None when the catalog doesn't expose it
             "ship_threshold_cents": threshold,
+            "is_universal": False,
         })
     return configs
 
+
+# The `universal` config renders skills/universal-checkout/ from this same
+# template. A real example URL (Amazon) shows the request schema.
+UNIVERSAL = {
+    "slug": "universal",
+    "display": "Zinc Universal Checkout",
+    "domain": "zinc.com",
+    "example_url": "https://www.amazon.com/dp/B09V3KXJPB",
+    "psearch": True,  # universal covers the products API (Amazon & Walmart)
+    "free_shipping": None,
+    "ship_threshold_cents": None,
+    "is_universal": True,
+}
+
 # --- Template --------------------------------------------------------------
-# Tokens: {{DISPLAY}} {{SLUG}} {{DOMAIN}} {{EXAMPLE_URL}}
-# {{PRODUCT_SEARCH}} and {{RETAILER_NOTE}} are assembled in Python.
+# Retailer-specific phrasing is injected via the tokens computed in
+# `variant_tokens()` so the ONE body below serves both the per-retailer skills
+# and universal-checkout. The shared sections (Auth/MPP, order mechanics,
+# tracking, returns, errors, safety) are literal here and identical everywhere.
 
 FRONTMATTER = """---
-name: {{SLUG}}-checkout
-description: Buy products from {{DISPLAY}} ({{DOMAIN}}) and manage those orders via the Zinc API (zinc.com). Use when the user wants to purchase, order, or check out an item from {{DISPLAY}}, check {{DISPLAY}} order status or tracking, cancel a {{DISPLAY}} order, or return a {{DISPLAY}} item. One API also covers Amazon, Walmart, Target, Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or Machine Payments Protocol (MPP) for per-request payments via Stripe cards/wallets or Tempo stablecoins.
+name: {{NAME}}
+description: {{DESCRIPTION}}
 ---
 """
 
 BODY = """
-# {{DISPLAY}} Checkout
+# {{TITLE}}
 
-Buy, track, and return products from {{DISPLAY}} ({{DOMAIN}}) through the Zinc API (`https://api.zinc.com`). US orders.
+{{INTRO}}
 
-> **Powered by Zinc Universal Checkout.** The same API buys from {{DISPLAY}} and 50+ other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
+{{POWERED_NOTE}}
 
 ## Quick Start
 
 **Which auth method should I use?**
 
 - **`ZINC_API_KEY` env var is set** → Use `POST /orders` with Bearer token auth. This is the standard flow for pre-registered users.
-- **MPP — no account needed** → Use the `/agent/*` endpoints; pay per request via **Tempo stablecoins** (`TEMPO_PRIVATE_KEY`, on-chain) or **Stripe** (cards/wallets via Stripe Link). `POST /agent/orders` to buy; `/agent/search` to discover ($0.01 per data call). `GET /retailers` is free.
-- **Neither is set** → Ask the user to either sign up at [app.zinc.com](https://app.zinc.com) for an API key, or set up an MPP payment method (Tempo wallet or Stripe). Try it without code at [agent.zinc.com](https://agent.zinc.com).
+- **MPP — no account needed** → Use the `/agent/*` endpoints and pay per request with a **Stripe card** (via Stripe Link — no crypto), **Tempo** stablecoins, or **x402** (USDC on Base). `POST /agent/orders` to buy; `/agent/search` to discover ($0.01 per data call). `GET /retailers` is free.
+- **Neither is set** → Ask the user to either sign up at [app.zinc.com](https://app.zinc.com) for an API key, or set up an MPP payment method. Try it without code at [agent.zinc.com](https://agent.zinc.com).
 
 All amounts are in **US cents** (e.g. `5000` = $50.00).
 
@@ -151,24 +153,32 @@ Authorization: Bearer $ZINC_API_KEY
 
 MPP is an open standard for HTTP 402 machine-to-machine payments (spec: [mpp.dev](https://mpp.dev)) — no API key needed upfront:
 
-1. Send the request (e.g. `POST /agent/orders`) with no `Authorization` header → receive HTTP `402 Payment Required` with one `WWW-Authenticate: Payment …` header per supported payment method
-2. The MPP client picks a method, completes payment, and retries with `Authorization: Payment <credential>` → success
-3. For orders, save the `X-Api-Key` response header — a Bearer token (scoped to that order) for `GET /orders/{id}`
+1. Send the request (e.g. `POST /agent/orders`) with **no** `Authorization` header → HTTP `402 Payment Required`. The challenge advertises every available rail: MPP methods as one `WWW-Authenticate: Payment …` header each (`method="stripe"`, `method="tempo"`), and **x402** as a `PAYMENT-REQUIRED` header (USDC on Base).
+2. Pick the rail your client supports and pay, then retry: MPP methods resubmit with `Authorization: Payment <credential>`; x402 clients resubmit with a `PAYMENT-SIGNATURE` header. Client libraries handle this loop automatically.
+3. For orders, save the `X-Api-Key` response header — a Bearer token scoped to that order, for `GET /orders/{id}`.
 
-**Payment methods** (the client auto-selects from the 402's `WWW-Authenticate` headers): **Stripe** (cards/wallets via Stripe Link / Shared Payment Tokens) or **Tempo** (stablecoins on-chain). Client libraries handle the flow automatically: Python `pip install pympp`, TypeScript `npm install mppx viem`, CLI `npx mppx`.
+**Select a single rail with `?method=`.** A 402 can carry several challenges at once, and many HTTP clients mishandle repeated `WWW-Authenticate` headers (they fold them into one comma-joined value, corrupting the params). If your client only supports one rail, append **`?method=stripe`**, `?method=tempo`, or `?method=x402` to `/agent/orders` to get a single, unambiguous challenge. Omit it to advertise all rails (for discovery). If you do parse multiple challenges yourself, read the **raw** header list (in Python `httpx`, `resp.headers.raw`) and select by `method=`.
+
+**Payment methods:**
+
+| Method | Pay with | How |
+|--------|----------|-----|
+| **Stripe** (card) | any credit/debit card via **Stripe Link** — no crypto wallet | mint a one-time Shared Payment Token with the [`create-payment-credential`](https://skills.sh/stripe/link-cli) skill (`link-cli`), then pay `/agent/orders?method=stripe`. |
+| **Tempo** | USDC stablecoin, on-chain | `pip install pympp` (Python) / `npm install mppx viem` (TS) — the client signs and pays. |
+| **x402** | USDC on **Base** (`eip155:8453`) | advertised via the `PAYMENT-REQUIRED` header on `/agent/orders`; pay with any x402 client (e.g. AgentCash). *x402 is offered on orders, not the $0.01 data endpoints.* |
 
 ## Find a product (optional)
 
-If the user already has a {{DISPLAY}} product URL, skip to **Place an order**. Otherwise search for one:
+{{FIND_INTRO}}
 
 ```bash
 curl "https://api.zinc.com/search?q=cast+iron+skillet" \\
   -H "Authorization: Bearer $ZINC_API_KEY"
 ```
 
-`GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "{{SLUG}}"` for {{DISPLAY}}-only, then pass the `url` into an order.
+{{FIND_FILTER}}
 
-Paying via MPP (Stripe or Tempo, no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.{{PRODUCT_SEARCH}}
+Paying via MPP (no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.{{PRODUCT_SEARCH}}
 
 ## Place an order — `POST /orders` (or `POST /agent/orders` for MPP)
 
@@ -182,7 +192,7 @@ Paying via MPP (Stripe or Tempo, no account)? Use the metered `GET /agent/search
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `url` | string | ✓ | Direct {{DISPLAY}} product page URL (on {{DOMAIN}}) |
+| `url` | string | ✓ | {{URL_DESC}} |
 | `quantity` | integer 1–100 | — | Units to buy (default 1) |
 | `variant` | array of `{ label, value }` | — | Options, e.g. `[{ "label": "Size", "value": "Large" }]` |
 | `condition_in` | array | — | Allowlist of acceptable conditions |
@@ -196,7 +206,7 @@ Paying via MPP (Stripe or Tempo, no account)? Use the metered `GET /agent/search
 
 ### Controlling price & shipping
 
-There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for {{DISPLAY}}'s free-shipping terms).
+There is no shipping-*method* picker; control cost and speed with: `max_price` (price ceiling), `condition_in` (allow used/refurbished for a cheaper qualifying offer), and `handling_days_max` (cap handling time). `max_price` is the **total** ceiling — item + shipping + tax — so leave room for shipping (see `GET /retailers` for each retailer's free-shipping terms).
 
 **Order statuses:** `pending` → `in_progress` → `order_placed` | `order_failed` | `cancelled` | `cancelled_by_retailer`.
 
@@ -225,10 +235,14 @@ curl -X POST https://api.zinc.com/orders \\
 
 ### Paying via MPP — `POST /agent/orders`
 
-Same request body, no API key — pay inline via Stripe or Tempo. Agent authorizes `max_price + $1.00` upfront (the `$1` is the Zinc API fee, so the full `max_price` stays available to the retailer). **Validation runs before payment:** an invalid URL/retailer/address returns HTTP 400 with no charge, and the credential stays reusable. On success: charged `actual_total + $1`, with any difference under `max_price` auto-refunded; on failure: full refund (server-side). The HTTP 201 response includes `X-Api-Key` (a `zn_live_...` Bearer token, scoped to this order) and `Payment-Receipt`. Quick test: `npx mppx https://api.zinc.com/agent/orders --method POST --body '…'`.
+Same request body, no API key — pay inline. Agent authorizes `max_price + $1.00` upfront (the `$1` is the Zinc API fee, so the full `max_price` stays available to the retailer). **Validation runs before payment:** an invalid URL/retailer/address returns HTTP 400 with no charge, and the credential stays reusable. On success: charged `actual_total + $1`, with any difference under `max_price` auto-refunded; on failure: full refund (server-side). The HTTP 201 response includes `X-Api-Key` (a `zn_live_...` Bearer token, scoped to this order) and `Payment-Receipt`.
+
+- **Stripe card (recommended for a human with just a card):** use the [`create-payment-credential`](https://skills.sh/stripe/link-cli) skill to mint a Shared Payment Token, then have that skill pay `https://api.zinc.com/agent/orders?method=stripe`.
+- **Tempo (stablecoin):** `npx mppx https://api.zinc.com/agent/orders --method POST --body '…'`, or `pympp`/`mppx` in code — the client handles the 402 → pay → retry.
+- **x402 (USDC on Base):** any x402 client (e.g. AgentCash) pays `POST /agent/orders` directly off the `PAYMENT-REQUIRED` header.
 
 ```python
-# pip install pympp
+# Tempo example — pip install pympp
 from mpp.client import Client
 from mpp.methods.tempo import tempo, TempoAccount, ChargeIntent, CHAIN_ID
 
@@ -237,7 +251,7 @@ method = tempo(chain_id=CHAIN_ID, account=account, intents={"charge": ChargeInte
 
 async with Client(methods=[method]) as client:
     response = await client.post(
-        "https://api.zinc.com/agent/orders",
+        "https://api.zinc.com/agent/orders?method=tempo",
         json={
             "products": [{"url": "{{EXAMPLE_URL}}", "quantity": 1}],
             "max_price": 5000,
@@ -254,15 +268,13 @@ async with Client(methods=[method]) as client:
     api_key = response.headers["X-Api-Key"]  # use for GET /orders/{id}
 ```
 
-For testnet, import `TESTNET_CHAIN_ID` and pass it as `chain_id`. TypeScript is equivalent via `mppx`. To use Stripe directly (Shared Payment Tokens), see [the Stripe-with-MPP guide](https://docs.zinc.com/v2/mpp#using-stripe-with-mpp).
-
 ## Track & manage orders
 
 ### Get order — `GET /orders/{id}`
 
 Retrieve a single order by UUID (Bearer token: `ZINC_API_KEY` or the MPP `X-Api-Key`). The response includes `status`, `items`, `shipping_address`, plus:
 
-- `tracking_numbers` — array of `{ id, carrier, tracking_number, status, checkpoints, created_at }`. `status` (always present) is the carrier-derived shipment state: `pending` | `in_transit` | `delivered`. `checkpoints` is the per-scan timeline (most recent first), each `{ checkpoint_time, status, message, city, state, country, zip, location }`. Added automatically; there is no separate tracking endpoint.
+- `tracking_numbers` — array of `{ id, carrier, tracking_number, status, checkpoints, created_at }`. `status` (always present) is the carrier-derived shipment state: `pending` | `in_transit` | `delivered`. `checkpoints` is the per-scan timeline (most recent first). Added automatically; there is no separate tracking endpoint.
 - `job_result` (once terminal) — `success`, `error`, `error_type`, `estimated_delivery`, `merchant_order_ids`, and `price_components` (`subtotal`, `tax`, `shipping`, `total`, `currency`).
 
 ```bash
@@ -272,7 +284,7 @@ curl https://api.zinc.com/orders/<order_id> \\
 
 ### List orders — `GET /orders`
 
-Returns `{ orders: [...] }`. Requires Bearer token auth. Each order's tracking numbers include `status` by default; add `?include=tracking_events` to also get the full `checkpoints` timeline.
+Returns `{ orders: [...] }`. Requires Bearer token auth. Add `?include=tracking_events` to also get the full `checkpoints` timeline.
 
 ### Cancel order — `POST /orders/{id}/cancel`
 
@@ -313,7 +325,7 @@ Key points:
 - Order processing failures appear in the order's `job_result.error_type` field
 - Common issues: `max_price_exceeded`, `product_out_of_stock`, `invalid_shipping_address`
 - MPP payment failures return HTTP 402 with `{ error: { code: "payment_failed", details: { reason: "..." } } }`
-- HTTP 402 without `payment_failed` code means the server is issuing a payment challenge (normal MPP flow — the MPP client handles this automatically)
+- HTTP 402 without `payment_failed` code means the server is issuing a payment challenge (normal MPP flow — the client handles this automatically)
 
 ## Order Status Tracking
 
@@ -333,7 +345,7 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - **Always confirm with the user** before placing an order (`POST /orders` or `POST /agent/orders`) or opening a return. Orders spend real money.
 - Reading operations (search, `GET /orders`, `GET /orders/{id}`, `GET /returns`) are always safe.
 - Set `max_price` to cover the **full** cost — item price **+ tax + shipping/handling** — not just the item. It's the total ceiling Zinc won't exceed, so too-low a value trips `max_price_exceeded`.
-- MPP orders authorize `max_price + $1` on the agent's payment method (Stripe card/wallet or Tempo wallet) — ensure sufficient balance/credit before placing.
+- MPP orders authorize `max_price + $1` on the agent's payment method (Stripe card, Tempo wallet, or x402/USDC) — ensure sufficient balance/credit before placing.
 
 {{NOTES_SECTION}}## Support
 
@@ -342,9 +354,68 @@ If your platform supports scheduled tasks or cron jobs, schedule a check ~7 minu
 - Discord: https://discord.gg/cuXgfczYfj
 """
 
-PRODUCT_SEARCH_BLOCK = """
+RETAILER_PRODUCT_SEARCH = """
 
 {{DISPLAY}} is one of the few retailers with richer product data (currently Amazon & Walmart only). For best-price comparison, use `GET /products/search?query=<term>&retailer={{SLUG}}` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer={{SLUG}}` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer={{SLUG}}`), $0.01 per call."""
+
+UNIVERSAL_PRODUCT_SEARCH = """
+
+**Richer product data (Amazon & Walmart only).** For best-price comparison on those two, use `GET /products/search?query=<term>&retailer=amazon|walmart` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer=amazon|walmart` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details`, $0.01 per call."""
+
+RETAILER_DESCRIPTION = (
+    "Buy products from {{DISPLAY}} ({{DOMAIN}}) and manage those orders via the Zinc "
+    "API (zinc.com). Use when the user wants to purchase, order, or check out an item "
+    "from {{DISPLAY}}, check {{DISPLAY}} order status or tracking, cancel a {{DISPLAY}} "
+    "order, or return a {{DISPLAY}} item. One API also covers Amazon, Walmart, Target, "
+    "Best Buy and 50+ other US retailers. Supports API key auth (ZINC_API_KEY) or "
+    "Machine Payments Protocol (MPP) for per-request payments via a Stripe card, Tempo "
+    "stablecoins, or x402 (USDC on Base)."
+)
+
+UNIVERSAL_DESCRIPTION = (
+    "Discover, buy, track, and return products across Amazon, Walmart, Target, Best Buy, "
+    "eBay, and 50+ other US retailers via the Zinc API (zinc.com). Use when the user wants "
+    "to search for or buy a product, check out, check order status or tracking, cancel an "
+    "order, or return an item programmatically. Supports API key auth (ZINC_API_KEY) or "
+    "Machine Payments Protocol (MPP) for per-request payments via a Stripe card (Stripe "
+    "Link), Tempo stablecoins, or x402 (USDC on Base)."
+)
+
+RETAILER_POWERED_NOTE = (
+    "> **Powered by Zinc Universal Checkout.** The same API buys from {{DISPLAY}} and 50+ "
+    "other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order "
+    "across multiple retailers from one skill, install the "
+    "[`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) "
+    "skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: "
+    "`GET https://api.zinc.com/retailers`."
+)
+
+UNIVERSAL_POWERED_NOTE = (
+    "> Live supported-retailer list: `GET https://api.zinc.com/retailers` (free, no auth). "
+    "If an agent only ever buys from one store, there are also per-retailer skills "
+    "(`amazon-checkout`, `walmart-checkout`, …) — see the repo README."
+)
+
+RETAILER_FIND_INTRO = (
+    "If the user already has a {{DISPLAY}} product URL, skip to **Place an order**. "
+    "Otherwise search for one:"
+)
+UNIVERSAL_FIND_INTRO = (
+    "If the user gives you a product URL, skip to **Place an order**. Otherwise find an "
+    "orderable product first:"
+)
+
+RETAILER_FIND_FILTER = (
+    "`GET /search` returns `{ status, query, results: [...] }` across retailers; each "
+    "result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), "
+    "`stars`. Filter results to `retailer == \"{{SLUG}}\"` for {{DISPLAY}}-only, then pass "
+    "the `url` into an order."
+)
+UNIVERSAL_FIND_FILTER = (
+    "`GET /search` returns `{ status, query, results: [...] }` across retailers; each "
+    "result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), "
+    "`stars`, `available`. Pass a result's `url` straight into an order."
+)
 
 
 def _dollars(cents):
@@ -353,8 +424,7 @@ def _dollars(cents):
 
 
 def shipping_note(r):
-    """Free-shipping line, from /retailers fields. Empty when the endpoint hasn't
-    exposed free-shipping yet — we don't guess."""
+    """Free-shipping line, from /retailers fields. Empty when not exposed."""
     fs = r.get("free_shipping")
     th = r.get("ship_threshold_cents")
     if fs is None:
@@ -365,8 +435,6 @@ def shipping_note(r):
     if th == 0:
         return "**Shipping:** {{DISPLAY}} ships free on all orders."
     if th is None:
-        # Free shipping offered but the catalog gives no threshold — state the
-        # fact without inventing a number.
         return ("**Shipping:** {{DISPLAY}} offers free shipping on qualifying orders; "
                 "below the threshold shipping is added — leave room in `max_price`.")
     return (f"**Shipping:** {{{{DISPLAY}}}} ships free on orders over {_dollars(th)}; "
@@ -374,30 +442,65 @@ def shipping_note(r):
 
 
 def notes_section(r):
-    """The optional '## Retailer notes' block — only rendered when /retailers
-    gives us something real to say (known free-shipping terms). Retailer-specific
-    constraints aren't hardcoded here; the order API reports them at request time."""
+    """The optional '## Retailer notes' block — only when /retailers gives us
+    something real to say. Universal has no single-retailer shipping terms."""
+    if r.get("is_universal"):
+        return ""
     sn = shipping_note(r)
     if not sn:
         return ""
     return "## Retailer notes\n\n" + sn + "\n\n"
 
 
-def render(retailer):
+def variant_tokens(r):
+    """Retailer-specific vs universal phrasing for the shared body."""
+    if r.get("is_universal"):
+        return {
+            "NAME": "universal-checkout",
+            "DESCRIPTION": UNIVERSAL_DESCRIPTION,
+            "TITLE": "Universal Checkout",
+            "INTRO": (
+                "Discover, buy, track, and return products across US online retailers "
+                "through the Zinc API (`https://api.zinc.com`). One API covers Amazon, "
+                "Walmart, Target, Best Buy, eBay, Home Depot, Lowe's, Wayfair, and 50+ more."
+            ),
+            "POWERED_NOTE": UNIVERSAL_POWERED_NOTE,
+            "FIND_INTRO": UNIVERSAL_FIND_INTRO,
+            "FIND_FILTER": UNIVERSAL_FIND_FILTER,
+            "URL_DESC": "Direct product page URL on a supported retailer",
+            "PRODUCT_SEARCH": UNIVERSAL_PRODUCT_SEARCH,
+        }
+    return {
+        "NAME": f"{r['slug']}-checkout",
+        "DESCRIPTION": RETAILER_DESCRIPTION,
+        "TITLE": "{{DISPLAY}} Checkout",
+        "INTRO": (
+            "Buy, track, and return products from {{DISPLAY}} ({{DOMAIN}}) through the "
+            "Zinc API (`https://api.zinc.com`). US orders."
+        ),
+        "POWERED_NOTE": RETAILER_POWERED_NOTE,
+        "FIND_INTRO": RETAILER_FIND_INTRO,
+        "FIND_FILTER": RETAILER_FIND_FILTER,
+        "URL_DESC": "Direct {{DISPLAY}} product page URL (on {{DOMAIN}})",
+        "PRODUCT_SEARCH": RETAILER_PRODUCT_SEARCH if r["psearch"] else "",
+    }
+
+
+def render(r):
+    tok = variant_tokens(r)
     out = FRONTMATTER + BODY
-    out = out.replace("{{PRODUCT_SEARCH}}", PRODUCT_SEARCH_BLOCK if retailer["psearch"] else "")
-    out = out.replace("{{NOTES_SECTION}}", notes_section(retailer))
-    # token substitution last so it reaches injected blocks too
-    out = out.replace("{{DISPLAY}}", retailer["display"])
-    out = out.replace("{{SLUG}}", retailer["slug"])
-    out = out.replace("{{DOMAIN}}", retailer["domain"])
-    out = out.replace("{{EXAMPLE_URL}}", retailer["example_url"])
+    # Inject variant sections first (they contain {{DISPLAY}}/{{SLUG}} tokens
+    # that the final pass resolves).
+    for key, val in tok.items():
+        out = out.replace("{{" + key + "}}", val)
+    out = out.replace("{{NOTES_SECTION}}", notes_section(r))
+    # Retailer tokens last so they reach injected blocks too.
+    out = out.replace("{{DISPLAY}}", r["display"])
+    out = out.replace("{{SLUG}}", r["slug"])
+    out = out.replace("{{DOMAIN}}", r["domain"])
+    out = out.replace("{{EXAMPLE_URL}}", r["example_url"])
     return out
 
-
-# Hand-maintained skills (SKILL.md is NOT generated) that still get the shared
-# references/errors.md refreshed from the single source above.
-SHARED_ERRORS_ONLY = ["universal-checkout"]
 
 README = os.path.join(REPO_ROOT, "README.md")
 TABLE_START = "<!-- SKILLS-TABLE:START (generated by tools/generate_skills.py — do not edit by hand) -->"
@@ -405,8 +508,7 @@ TABLE_END = "<!-- SKILLS-TABLE:END -->"
 
 
 def update_readme_table(retailers):
-    """Rewrite the skills table in README.md between the markers, so the retailer
-    list there stays driven by /retailers too (not hand-maintained)."""
+    """Rewrite the skills table in README.md between the markers."""
     rows = [
         "| Skill | Buys from | Install |",
         "|-------|-----------|---------|",
@@ -421,9 +523,6 @@ def update_readme_table(retailers):
     block = TABLE_START + "\n" + "\n".join(rows) + "\n" + TABLE_END
     with open(README) as f:
         text = f.read()
-    # Guard against a mangled README: the markers must each appear exactly once,
-    # in order. Otherwise partition() would silently drop content or duplicate
-    # the table — fail loudly instead of corrupting the file.
     if text.count(TABLE_START) != 1 or text.count(TABLE_END) != 1:
         sys.exit(
             f"README.md must contain exactly one {TABLE_START!r} and one "
@@ -435,31 +534,32 @@ def update_readme_table(retailers):
         f.write(pre + block + post)
 
 
+def write_skill(r):
+    """Render one skill folder (SKILL.md + shared errors.md). Returns folder name."""
+    folder_name = f"{r['slug']}-checkout"
+    folder = os.path.join(SKILLS_DIR, folder_name)
+    refs = os.path.join(folder, "references")
+    os.makedirs(refs, exist_ok=True)
+    with open(os.path.join(folder, "SKILL.md"), "w") as f:
+        f.write(render(r))
+    shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
+    return folder_name
+
+
 def main():
     refresh = "--refresh" in sys.argv[1:]
     catalog = load_catalog(refresh)
     retailers = build_retailers(catalog)
 
-    written = []
+    # universal-checkout is generated from the same template as the retailers,
+    # so the shared sections (esp. Auth/MPP) can never drift.
+    written = [write_skill(UNIVERSAL)]
     for r in retailers:
-        folder = os.path.join(SKILLS_DIR, f"{r['slug']}-checkout")
-        refs = os.path.join(folder, "references")
-        os.makedirs(refs, exist_ok=True)
-        with open(os.path.join(folder, "SKILL.md"), "w") as f:
-            f.write(render(r))
-        shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
-        written.append(f"{r['slug']}-checkout")
-
-    # Keep the error reference in sync for hand-maintained skills too.
-    for name in SHARED_ERRORS_ONLY:
-        refs = os.path.join(SKILLS_DIR, name, "references")
-        os.makedirs(refs, exist_ok=True)
-        shutil.copyfile(SHARED_ERRORS, os.path.join(refs, "errors.md"))
+        written.append(write_skill(r))
 
     # Prune stale generated skills: a retailer dropped or renamed in the catalog
-    # leaves a `<slug>-checkout/` folder that would still be installable. Only
-    # `*-checkout` folders are touched; hand-maintained skills are kept.
-    keep = set(written) | set(SHARED_ERRORS_ONLY)
+    # leaves a `<slug>-checkout/` folder that would still be installable.
+    keep = set(written)
     removed = []
     for entry in sorted(os.listdir(SKILLS_DIR)) if os.path.isdir(SKILLS_DIR) else []:
         path = os.path.join(SKILLS_DIR, entry)
@@ -469,10 +569,9 @@ def main():
 
     update_readme_table(retailers)
 
-    print(f"Generated {len(written)} retailer skills from {len(catalog)} cataloged retailers:")
+    print(f"Generated {len(written)} skills from {len(catalog)} cataloged retailers:")
     for w in written:
         print(f"  skills/{w}/")
-    print(f"Refreshed errors.md for: {', '.join(SHARED_ERRORS_ONLY)}")
     if removed:
         print(f"Pruned {len(removed)} stale skill(s): {', '.join(removed)}")
     print("Updated README skills table.")
