@@ -7,7 +7,7 @@ description: Buy products from Lowe's (lowes.com) and manage those orders via th
 
 Buy, track, and return products from Lowe's (lowes.com) through the Zinc API (`https://api.zinc.com`). US orders.
 
-> **Powered by Zinc Universal Checkout.** The same API buys from Lowe's and 50+ other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/main/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
+> **Powered by Zinc Universal Checkout.** The same API buys from Lowe's and 50+ other US retailers (Amazon, Walmart, Target, Best Buy, eBay, and more). To order across multiple retailers from one skill, install the [`universal-checkout`](https://github.com/zincio/skills/tree/master/skills/universal-checkout) skill (`npx skills add zincio/skills --skill universal-checkout`). Live retailer list: `GET https://api.zinc.com/retailers`.
 
 ## Quick Start
 
@@ -195,7 +195,7 @@ curl -X POST https://api.zinc.com/returns \
 
 ## Error Handling
 
-See [references/errors.md](references/errors.md) for the full error code reference.
+See [references/errors.md](https://github.com/zincio/skills/blob/master/skills/lowes-checkout/references/errors.md) for the full error code reference.
 
 Key points:
 
