@@ -197,7 +197,7 @@ curl -X POST https://api.zinc.com/returns \
 
 ## Error Handling
 
-See [references/errors.md](references/errors.md) for the full error code reference.
+See [references/errors.md](https://github.com/zincio/skills/blob/master/skills/universal-checkout/references/errors.md) for the full error code reference.
 
 Key points:
 
