@@ -1,0 +1,48 @@
+name: Notify Docs of Skill Changes
+
+# When a skill's committed output changes on master, ping zincio/docs
+# (repository_dispatch type "skills-updated") so its sync-skills workflow
+# mirrors the catalog into .mintlify/skills and Mintlify redeploys.
+#
+# Without this, that sync only runs on its daily cron, so a merge here took up
+# to a day to reach the docs site.
+#
+# Only skills/** is watched: the generated SKILL.md files are committed, so any
+# change that the docs site would serve shows up there. A change to
+# tools/generate_skills.py or references/errors.md alone has nothing to sync
+# until someone regenerates.
+#
+# No payload is sent — the docs workflow re-clones master and diffs, and it
+# no-ops when nothing changed, so a redundant ping is harmless.
+#
+# Requires the DOCS_DISPATCH_TOKEN secret: a token that can create
+# repository_dispatch events on zincio/docs (fine-grained PAT with
+# contents:write on that repo, or a classic PAT with repo scope). The default
+# GITHUB_TOKEN cannot — it is scoped to this repository.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - skills/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping docs repo
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "DOCS_DISPATCH_TOKEN is not set; cannot ping zincio/docs." >&2
+            echo "The docs sync will still pick this up on its daily cron." >&2
+            exit 1
+          fi
+          gh api repos/zincio/docs/dispatches \
+            -f event_type=skills-updated
+          echo "Pinged zincio/docs (skills-updated)."
