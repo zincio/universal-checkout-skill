@@ -56,9 +56,9 @@ curl "https://api.zinc.com/search?q=cast+iron+skillet" \
 
 `GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "amazon"` for Amazon-only, then pass the `url` into an order.
 
-Paying via MPP (no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.
+Paying via MPP (no account)? Use the metered `POST /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.
 
-Amazon is one of the few retailers with richer product data (currently Amazon & Walmart only). For best-price comparison, use `GET /products/search?query=<term>&retailer=amazon` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer=amazon` to compare offers by **price and condition** before ordering. On the MPP rail these are `GET /agent/products/search`, `GET /agent/products/offers`, and `GET /agent/products/details` (query param `product_id=…&retailer=amazon`), $0.01 per call.
+Amazon is one of the few retailers with richer product data (currently Amazon & Walmart only). For best-price comparison, use `GET /products/search?query=<term>&retailer=amazon` (returns `product_id`, `price`, `ship_price`, `stars`, …) and `GET /products/{product_id}/offers?retailer=amazon` to compare offers by **price and condition** before ordering. On the MPP rail these are `POST /agent/products/search`, `POST /agent/products/offers`, and `POST /agent/products/details` (query param `product_id=…&retailer=amazon`), $0.01 per call.
 
 ## Place an order — `POST /orders` (or `POST /agent/orders` for MPP)
 

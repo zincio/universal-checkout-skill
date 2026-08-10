@@ -56,7 +56,7 @@ curl "https://api.zinc.com/search?q=cast+iron+skillet" \
 
 `GET /search` returns `{ status, query, results: [...] }` across retailers; each result has a directly **orderable `url`** plus `retailer`, `title`, `price` (cents), `stars`. Filter results to `retailer == "ebay"` for eBay-only, then pass the `url` into an order.
 
-Paying via MPP (no account)? Use the metered `GET /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.
+Paying via MPP (no account)? Use the metered `POST /agent/search` instead — $0.01 per call, returns a `Payment-Receipt` header; the MPP client handles the 402 → pay → retry automatically. `GET /retailers` is free.
 
 ## Place an order — `POST /orders` (or `POST /agent/orders` for MPP)
 
