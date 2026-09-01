@@ -1,4 +1,4 @@
-# Zinc Skills
+# Zinc Skills: Universal Checkout for AI Agents
 
 [Agent Skills](https://agentskills.io) for **buying products and managing orders** through the [Zinc API](https://zinc.com) — programmatic checkout across Amazon, Walmart, Target, Best Buy, eBay, and 50+ other retailers with a single API.
 
