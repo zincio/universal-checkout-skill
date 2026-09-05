@@ -43,7 +43,7 @@ Before anything that spends money, show the user and wait for an explicit **"yes
 - the **box** and its **all-in estimate** in dollars (e.g. `$20.99`),
 - the **full recipient address** as it will ship,
 - the **gift note** (if any),
-- that their **Stripe Link card will be charged** (they approve in the Link app).
+- that their **Stripe Link card will be charged** (they approve via a link you'll print — opens in any browser).
 
 ### 4. Build the Zinc order body
 
@@ -68,18 +68,18 @@ EOF
 
 ### 5. Get the Stripe payment challenge from Zinc
 
-Post the body **once, unauthenticated**, to read the `402` challenge. Zinc validates the address first (a bad phone → `422`, fix and retry). On success you get a `402` with two `WWW-Authenticate: Payment` headers — one `method="tempo"`, one `method="stripe"`. You want the **stripe** one.
+Post the body **once, unauthenticated**, to read the `402` challenge. The **`?method=stripe`** query param tells Zinc to return a single `WWW-Authenticate: Payment` challenge for the card rail — always pass it, so `link-cli` sees exactly one challenge (Zinc otherwise advertises multiple rails, which trips clients). Zinc validates the address first (a bad phone → `422`, fix and retry).
 
 ```bash
-curl -s -D headers.txt -o body.json -X POST https://api.zinc.com/agent/orders \
+curl -s -D headers.txt -o body.json -X POST "https://api.zinc.com/agent/orders?method=stripe" \
   -H "Content-Type: application/json" --data @order.json
-grep -i '^www-authenticate:.*method="stripe"' headers.txt
+grep -i '^www-authenticate:' headers.txt
 ```
 
-Decode the stripe challenge to get the `network_id` and confirm the amount (= `max_price` + $1):
+Decode the challenge to get the `network_id` and confirm the amount (= `max_price` + $1):
 
 ```bash
-link-cli mpp decode --challenge "$(grep -i '^www-authenticate:.*method=\"stripe\"' headers.txt | sed 's/^[Ww][Ww][Ww]-[Aa]uthenticate: //')"
+link-cli mpp decode --challenge "$(grep -i '^www-authenticate:' headers.txt | sed 's/^[Ww][Ww][Ww]-[Aa]uthenticate: //')"
 ```
 
 Note the returned `network_id` and `amount` (in cents).
@@ -99,14 +99,14 @@ link-cli spend-request create \
   --context "Sending a dozen Krispy Kreme Original Glazed doughnuts as a gift to Jane Doe in San Francisco, shipped and fulfilled by Zinc. This authorizes the donut box plus shipping, tax, and the $1 order fee."
 ```
 
-This requests approval and polls. **Tell the user to open the Link app and approve within 10 minutes.** Note the returned spend request id (`lsrq_…`). (`merchant-name`/`merchant-url` are omitted on purpose — they're forbidden for SPT.)
+This returns a spend request id (`lsrq_…`) and an **`approval_url`** (e.g. `https://app.link.com/activity/approve/lsrq_…`). **Print the `approval_url`** and tell the user to open it and approve within 10 minutes — it's a normal browser page, no app required. Then poll until approved: `link-cli spend-request retrieve <lsrq_…> --interval 2 --max-attempts 300`. (`merchant-name`/`merchant-url` are omitted on purpose — they're forbidden for SPT.)
 
 ### 7. Pay + place the order
 
 Once approved, pay the Zinc endpoint with the SPT — `mpp pay` runs the full 402 → token → retry and places the order:
 
 ```bash
-link-cli mpp pay https://api.zinc.com/agent/orders \
+link-cli mpp pay "https://api.zinc.com/agent/orders?method=stripe" \
   --spend-request-id "<lsrq_…>" \
   --method POST \
   --data "$(cat order.json)"
@@ -128,7 +128,7 @@ Statuses: `pending` → `in_progress` → `order_placed` (terminal). Relay `trac
 
 - **Confirm before paying.** Never create a spend request or call `mpp pay` until the user has approved item, all-in price, full address, and gift note (step 3).
 - **The phone is always the sender's own, real number.** Never invent, look up, or use the recipient's phone; placeholder numbers are rejected.
-- **The user approves the charge in the Link app** — you never handle their card. Surface the approval prompt clearly.
+- **The user approves the charge via the `approval_url`** (a browser page) — you never handle their card. Print that link clearly.
 - **SPT is one-time use.** On any payment failure, create a new spend request; never reuse a consumed one.
 - Reading operations (`GET /orders/{id}`, `mpp decode`) are safe.
 
